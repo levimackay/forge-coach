@@ -1,0 +1,28 @@
+# Documents the hosted project's settings. Migrations are applied to the
+# project directly; nothing here starts a local stack.
+project_id = "forge-coach"
+
+[api]
+enabled = true
+schemas = ["public"]
+
+[db]
+major_version = 17
+
+[auth]
+# Single-user app: the owner account is created in the dashboard, and the
+# public sign-up endpoint stays closed.
+enable_signup = false
+site_url = "https://forge-coach-app.vercel.app"
+additional_redirect_urls = ["https://forge-coach-app.vercel.app/**"]
+
+# Supabase Auth as the OAuth 2.1 server for the Claude connector. The consent
+# page lives in the app at /oauth/consent. Dynamic client registration stays off:
+# the single Claude client is registered by hand in the dashboard.
+[auth.oauth_server]
+enabled = true
+authorization_url_path = "/oauth/consent"
+allow_dynamic_registration = false
+
+[auth.email]
+enable_confirmations = true

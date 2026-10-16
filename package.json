@@ -4,23 +4,40 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "next build && serwist build serwist.config.mjs",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "icons": "node scripts/generate-icons.mjs"
   },
   "dependencies": {
+    "@modelcontextprotocol/server": "2.3.1",
+    "@serwist/next": "9.5.13",
+    "@supabase/supabase-js": "2.118.0",
+    "dexie": "4.4.6",
+    "dexie-react-hooks": "4.4.0",
+    "mcp-handler": "2.3.0",
     "next": "16.4.1",
     "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "react-dom": "19.3.0",
+    "serwist": "9.5.13",
+    "zod": "4.6.7"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.5.10",
+    "@serwist/cli": "9.5.13",
     "@tailwindcss/turbopack": "^4",
-    "@types/node": "^20",
+    "@types/node": "24.19.2",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "esbuild": "0.28.2",
     "eslint": "^9",
     "eslint-config-next": "16.4.1",
+    "fake-indexeddb": "6.2.5",
+    "jose": "6.2.12",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "5.0.5"
   }
 }
