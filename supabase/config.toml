@@ -10,14 +10,11 @@ schemas = ["public"]
 major_version = 17
 
 [auth]
+# Single-user app: the owner account is created in the dashboard, and the
+# public sign-up endpoint stays closed.
+enable_signup = false
 site_url = "https://forge-coach-app.vercel.app"
 additional_redirect_urls = ["https://forge-coach-app.vercel.app/**"]
-
-# Single-user app: the installed iPhone app cannot follow an emailed
-# confirmation link, so sign-up signs in directly. Sign-ups are turned off
-# once the owner's account exists.
-[auth.email]
-enable_confirmations = false
 
 # Supabase Auth as the OAuth 2.1 server for the Claude connector. The consent
 # page lives in the app at /oauth/consent. Dynamic client registration stays off:
@@ -26,3 +23,6 @@ enable_confirmations = false
 enabled = true
 authorization_url_path = "/oauth/consent"
 allow_dynamic_registration = false
+
+[auth.email]
+enable_confirmations = true
