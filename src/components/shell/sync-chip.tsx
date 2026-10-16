@@ -15,29 +15,40 @@ export function describeSync(s: SyncStatus): { text: string; tone: Tone } {
   return { text: "Synced", tone: "quiet" };
 }
 
+const changes = (n: number) => `${n} ${n === 1 ? "change" : "changes"}`;
+
 /**
- * Sync state as plain text. A state that needs attention is set in medium weight,
- * so it reads without colour.
+ * The one line the lifter sees about sync, or null while everything is fine. A write that waits
+ * for the network or retries is not worth saying until it is stuck: offline with something to
+ * send, a failed push, or a write the server refused.
  */
-export function SyncChip({ align = "start" }: { align?: "start" | "end" }) {
+export function syncProblem(s: SyncStatus): string | null {
+  if (s.failed > 0) return `${changes(s.failed)} could not be saved.`;
+  if (!s.online) return s.pending > 0 ? `Offline. ${changes(s.pending)} will sync later.` : null;
+  if (s.error && s.pending > 0) return "Could not sync. Trying again.";
+  return null;
+}
+
+/** Sits once at the top of every signed-in screen and says nothing when sync is fine. */
+export function SyncLine() {
   const status = useSyncStatus();
-  const { text, tone } = describeSync(status);
+  const text = syncProblem(status);
+  if (text === null) return null;
   return (
-    <div className="flex">
-      <button
-        type="button"
-        onClick={() => void syncNow()}
-        aria-label={`Sync status: ${text}. Tap to sync now.`}
-        className={`inline-flex min-h-11 min-w-11 items-center text-small ${
-          align === "end" ? "justify-end" : "justify-start"
-        } ${tone === "warn" || tone === "error" ? "font-medium" : ""}`}
-      >
-        {text}
-      </button>
-      {/* Outside the button so changes are announced; button content is not a live region. */}
-      <span role="status" className="sr-only">
-        {text}
-      </span>
+    <div role="status" className="flex min-h-11 items-center justify-between gap-4 border-b border-rule text-small">
+      <span>{text}</span>
+      {status.online ? (
+        <button
+          type="button"
+          onClick={() => void syncNow()}
+          className="-mr-2 inline-flex min-h-11 min-w-11 items-center justify-center px-2 underline decoration-1 underline-offset-4 active:bg-ink active:text-ground"
+        >
+          Retry
+        </button>
+      ) : null}
     </div>
   );
 }
+
+/** Kept so screens that still mount it compile. The sync line now lives once in the app shell. */
+export const SyncChip: (props: { align?: "start" | "end" }) => null = () => null;

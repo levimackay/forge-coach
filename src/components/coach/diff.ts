@@ -86,7 +86,7 @@ export function prescriptionRows(
   }
 
   if (patch.target_rir !== undefined) {
-    push("Reps in reserve", before ? String(before.target_rir) : null, String(patch.target_rir));
+    push("Reps left", before ? String(before.target_rir) : null, String(patch.target_rir));
   }
   if (patch.load !== undefined) {
     push("Load", before ? loadDisplay(ctx, exerciseId, before.load) : null, loadDisplay(ctx, exerciseId, patch.load));
@@ -179,7 +179,7 @@ function describeOne(
       const rows: DiffRow[] = [
         { label: "Sets", before: null, after: String(change.sets) },
         { label: "Reps", before: null, after: repRangeText(change.rep_min, change.rep_max) },
-        { label: "Reps in reserve", before: null, after: String(change.target_rir) },
+        { label: "Reps left", before: null, after: String(change.target_rir) },
         { label: "Load", before: null, after: loadDisplay(ctx, change.exercise_id, change.load) },
         { label: "Slot", before: null, after: String(change.position + 1) },
       ];
@@ -241,4 +241,29 @@ export function describeChanges(
   inverse: readonly InverseChange[] | null = null,
 ): DiffBlock[] {
   return changes.map((change, i) => describeOne(change, i, ctx, mode, inverse));
+}
+
+function rowLine(row: DiffRow): string | null {
+  const move = row.before === null ? row.after : `${row.before} → ${row.after}`;
+  switch (row.label) {
+    case "Sets":
+      return `${move} sets`;
+    case "Reps left":
+      return `${move} reps left`;
+    case "Slot":
+      return null;
+    default:
+      return move;
+  }
+}
+
+/**
+ * One short line per thing a change does, in plain words, for the right side of a suggestion row:
+ * "3 → 4 sets", "135 lb → 140 lb", "Removed".
+ */
+export function changeLines(block: DiffBlock): string[] {
+  if (block.verb === "Remove") return ["Removed"];
+  if (block.verb === "Swap") return block.rows.some((r) => r.label === "Load") ? ["Swapped", "Load cleared"] : ["Swapped"];
+  const lines = block.rows.flatMap((r) => rowLine(r) ?? []);
+  return block.verb === "Add" ? ["Added", ...lines] : lines;
 }

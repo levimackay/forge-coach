@@ -25,7 +25,7 @@
     fig-112 .. fig-24             light figures, tabular
     head      28/32   regular    a lift picker or page name
     name      20/24   medium     lift names, section names
-    band      22/28   medium     the label on a band
+    band      28/32   medium     the label on a band
     control   20/24   regular    rest timer cells
     word      17/22   regular    word switches, metric tabs
     body      16/22   regular    labels, values, prose
@@ -96,8 +96,8 @@
   --text-head: 28px;
   --text-head--line-height: 32px;
   --text-head--font-weight: 400;
-  --text-band: 22px;
-  --text-band--line-height: 28px;
+  --text-band: 28px;
+  --text-band--line-height: 32px;
   --text-band--font-weight: 500;
   --text-name: 20px;
   --text-name--line-height: 24px;
@@ -124,7 +124,7 @@
   /* Tab bar row, above the bottom safe area. */
   --tabbar-height: 49px;
   /* Primary band, and the taller live band above the bottom safe area. */
-  --band-height: 64px;
+  --band-height: 72px;
   --live-band-height: 76px;
   /* Label column of a label / value row. */
   --label-col: 76px;

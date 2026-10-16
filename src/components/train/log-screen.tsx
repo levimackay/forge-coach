@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { EmptyState } from "@/components/ui/empty-state";
+import { Button, ButtonLink } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { ListGroup, ListRow } from "@/components/ui/list-row";
 import { parseNumber } from "@/components/ui/number-math";
@@ -10,7 +9,6 @@ import { NumberStepper } from "@/components/ui/number-stepper";
 import { Segmented } from "@/components/ui/segmented";
 import { useToast } from "@/components/ui/toast";
 import { ScreenBar } from "@/components/shell/screen-bar";
-import { SyncChip } from "@/components/shell/sync-chip";
 import { useBodyMeasurements, useLive, useProfile, useRecoveryLogs } from "@/lib/local";
 import type { BodyMeasurement, IsoDate, RecoveryLog, Unit } from "@/lib/domain/types";
 import { RatingRow, ScreenTitle, SectionTitle } from "./bits";
@@ -34,11 +32,18 @@ import { useToday } from "./use-now";
 
 type Tab = "recovery" | "body";
 
+const back = (
+  <ButtonLink href="/more" variant="ghost" size="sm" className="-ml-2">
+    Back
+  </ButtonLink>
+);
+
 export function LogScreen() {
   const today = useToday();
   const profile = useProfile();
   const [tab, setTab] = useState<Tab>("recovery");
   const [picked, setPicked] = useState<IsoDate | null>(null);
+  const [dateOpen, setDateOpen] = useState(false);
 
   if (today === null || profile === undefined) return <ScreenSkeleton rows={4} label="Loading" />;
   const date = picked ?? today;
@@ -47,28 +52,36 @@ export function LogScreen() {
   return (
     <div className="flex flex-col gap-6 pb-[var(--band-height)]">
       <div>
-        <ScreenBar start={<SyncChip />} />
-        <ScreenTitle title="Log" />
+        <ScreenBar start={back} />
+        <ScreenTitle title="Sleep and body" />
         <Segmented
-          label="What to log"
+          label="Sleep or body"
           className="-ml-2.5"
           value={tab}
           onChange={setTab}
           options={[
-            { value: "recovery", label: "Recovery" },
+            { value: "recovery", label: "Sleep" },
             { value: "body", label: "Body" },
           ]}
         />
       </div>
-      <Field
-        label="Date"
-        type="date"
-        value={date}
-        max={today}
-        onChange={(e) => {
-          if (e.target.value) setPicked(e.target.value);
-        }}
-      />
+      {dateOpen || date !== today ? (
+        <Field
+          label="Date"
+          type="date"
+          value={date}
+          max={today}
+          onChange={(e) => {
+            if (e.target.value) setPicked(e.target.value);
+          }}
+        />
+      ) : (
+        <div className="-mt-3">
+          <Button variant="ghost" size="sm" className="-ml-2" aria-label="Not today? Change the date." onClick={() => setDateOpen(true)}>
+            Not today?
+          </Button>
+        </div>
+      )}
       {tab === "recovery" ? (
         <RecoveryTab date={date} onPickDate={setPicked} />
       ) : (
@@ -88,8 +101,8 @@ function RecoveryTab({ date, onPickDate }: { date: IsoDate; onPickDate: (d: IsoD
       <RecoveryForm key={`${date}:${existing?.id ?? "new"}`} date={date} existing={existing} />
       {recent && recent.length > 0 ? (
         <section>
-          <SectionTitle>Recent check-ins</SectionTitle>
-          <ListGroup label="Recent check-ins" className="border-t border-rule">
+          <SectionTitle>Earlier</SectionTitle>
+          <ListGroup label="Earlier check-ins" className="border-t border-rule">
             {recent.slice(0, 10).map((log) => (
               <ListRow
                 key={log.id}
@@ -130,9 +143,9 @@ function RecoveryForm({ date, existing }: { date: IsoDate; existing: RecoveryLog
     setBusy(true);
     try {
       await saveRecovery(date, values);
-      toast(existing ? "Check-in updated" : "Check-in saved");
+      toast("Saved");
     } catch {
-      toast("The check-in was not saved. Try again.", { tone: "error" });
+      toast("Not saved. Try again.", { tone: "error" });
     } finally {
       setBusy(false);
     }
@@ -163,7 +176,7 @@ function RecoveryForm({ date, existing }: { date: IsoDate; existing: RecoveryLog
         <div className="border-t border-rule" />
       </div>
       <Field
-        label="Note (optional)"
+        label="Note"
         multiline
         rows={2}
         maxLength={1000}
@@ -176,7 +189,7 @@ function RecoveryForm({ date, existing }: { date: IsoDate; existing: RecoveryLog
         </p>
       ) : null}
       <Button variant="primary" pinned="tabs" loading={busy} onClick={() => void save()}>
-        {existing ? "Update check-in" : "Save check-in"}
+        Save
       </Button>
     </section>
   );
@@ -193,8 +206,8 @@ function BodyTab({ date, unit, onPickDate }: { date: IsoDate; unit: Unit; onPick
       <BodyForm key={`${date}:${existing?.id ?? "new"}`} date={date} unit={unit} existing={existing} latest={latest} />
       {all.length > 0 ? (
         <section>
-          <SectionTitle>Recent measurements</SectionTitle>
-          <ListGroup label="Recent measurements" className="border-t border-rule">
+          <SectionTitle>Earlier</SectionTitle>
+          <ListGroup label="Earlier measurements" className="border-t border-rule">
             {all.slice(0, 8).map((m) => (
               <ListRow
                 key={m.id}
@@ -207,9 +220,7 @@ function BodyTab({ date, unit, onPickDate }: { date: IsoDate; unit: Unit; onPick
             ))}
           </ListGroup>
         </section>
-      ) : (
-        <EmptyState title="No measurements yet">Your first entry shows up here and feeds your bodyweight trend.</EmptyState>
-      )}
+      ) : null}
     </>
   );
 }
@@ -283,9 +294,9 @@ function BodyForm({
     setBusy(true);
     try {
       await saveMeasurement(date, values);
-      toast(existing ? "Measurements updated" : "Measurements saved");
+      toast("Saved");
     } catch {
-      toast("The measurements were not saved. Try again.", { tone: "error" });
+      toast("Not saved. Try again.", { tone: "error" });
     } finally {
       setBusy(false);
     }
@@ -310,11 +321,8 @@ function BodyForm({
           );
         })}
       </div>
-      {latest ? (
-        <p>The grey numbers are from your entry on {formatDay(latest.measured_on)}.</p>
-      ) : null}
       <Field
-        label="Note (optional)"
+        label="Note"
         multiline
         rows={2}
         maxLength={1000}
@@ -327,7 +335,7 @@ function BodyForm({
         </p>
       ) : null}
       <Button variant="primary" pinned="tabs" loading={busy} onClick={() => void save()}>
-        {existing ? "Update measurements" : "Save measurements"}
+        Save
       </Button>
     </section>
   );

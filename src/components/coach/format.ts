@@ -1,4 +1,4 @@
-import type { IsoDateTime, ProgressionAction, Unit } from "@/lib/domain/types";
+import type { IsoDateTime, Unit } from "@/lib/domain/types";
 import { num } from "@/lib/reports/format";
 
 /** "front_delts" becomes "Front delts". */
@@ -65,15 +65,3 @@ export function dateTimeText(iso: IsoDateTime, timeZone?: string): string {
     ...(timeZone ? { timeZone } : {}),
   }).format(d);
 }
-
-export const ACTION_LABEL: Record<ProgressionAction, string> = {
-  increase_load: "Load up",
-  increase_reps: "Add reps",
-  hold: "Hold",
-  advance_variation: "Harder variation",
-  regress_variation: "Easier variation",
-  deload: "Deload",
-  reduce_after_gap: "Eased back after a break",
-  pain_hold: "Held for pain",
-  substitute_equipment: "Swapped for equipment",
-};

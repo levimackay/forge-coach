@@ -64,7 +64,7 @@ export function describeChange(
       `Rep range: ${formatRepRange(after.rep_min, after.rep_max)} (was ${formatRepRange(before.rep_min, before.rep_max)})`,
     );
   }
-  if (before.target_rir !== after.target_rir) lines.push(`Target RIR: ${after.target_rir} (was ${before.target_rir})`);
+  if (before.target_rir !== after.target_rir) lines.push(`Reps left in the tank: ${after.target_rir} (was ${before.target_rir})`);
   return lines;
 }
 

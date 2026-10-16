@@ -6,7 +6,6 @@ import {
   canLog,
   currentExerciseId,
   describeSet,
-  draftSummary,
   draftToRow,
   firstOpenIndex,
   groupByPlanned,
@@ -14,6 +13,7 @@ import {
   lastSessionLine,
   minutesBetween,
   nextSetIndex,
+  nextToDo,
   restSecondsFor,
   sessionTotals,
   setLine,
@@ -92,18 +92,20 @@ describe("initialDraft", () => {
     expect(initialDraft({ ...base, targetReps: 9 }).reps).toBe(9);
   });
 
-  it("repeats the previous work set from this session", () => {
+  it("repeats the weight and reps of the previous work set from this session", () => {
     const logged = [set({ set_index: 0, reps: 9, load: 140, rir: 1 }), set({ set_index: 1, reps: 8, load: 140, rir: 0 })];
-    expect(initialDraft({ ...base, logged })).toMatchObject({ reps: 8, load: 140, rir: 0 });
+    expect(initialDraft({ ...base, logged })).toMatchObject({ reps: 8, load: 140 });
+  });
+
+  it("starts every set at the plan's target effort, whatever the previous set was", () => {
+    const logged = [set({ set_index: 0, reps: 8, load: 140, rir: 0 })];
+    expect(initialDraft({ ...base, logged }).rir).toBe(2);
+    expect(initialDraft({ ...base, logged: [set({ rir: null })] }).rir).toBe(2);
   });
 
   it("does not copy a warmup into the first work set", () => {
     const logged = [set({ set_index: 0, reps: 10, load: 65, rir: null, is_warmup: true })];
     expect(initialDraft({ ...base, logged })).toMatchObject({ reps: 6, load: 135 });
-  });
-
-  it("falls back to the prescribed RIR when the previous set had none", () => {
-    expect(initialDraft({ ...base, logged: [set({ rir: null })] }).rir).toBe(2);
   });
 
   it("leaves the weight empty for external work with no weight yet", () => {
@@ -192,15 +194,15 @@ describe("draftToRow", () => {
 
 describe("text helpers", () => {
   it("describes a set", () => {
-    expect(describeSet({ reps: 12, load: 50, rir: 2 }, "lb")).toBe("12 reps at 50 lb, 2 RIR");
-    expect(describeSet({ reps: 1, load: null, rir: null }, "lb")).toBe("1 rep");
+    expect(describeSet({ reps: 12, load: 50 }, "lb")).toBe("12 reps at 50 lb");
+    expect(describeSet({ reps: 1, load: null }, "lb")).toBe("1 rep");
   });
 
   it("shows a logged set with a multiplication sign, and drops what is missing", () => {
-    expect(setLine({ reps: 6, load: 160, rir: 2 }, "lb")).toBe("160 lb × 6 at 2 RIR");
-    expect(setLine({ reps: 8, load: 62.5, rir: null }, "kg")).toBe("62.5 kg × 8");
-    expect(setLine({ reps: 12, load: null, rir: 2 }, "lb")).toBe("12 reps at 2 RIR");
-    expect(setLine({ reps: 1, load: null, rir: null }, "lb")).toBe("1 rep");
+    expect(setLine({ reps: 6, load: 160 }, "lb")).toBe("160 lb × 6");
+    expect(setLine({ reps: 8, load: 62.5 }, "kg")).toBe("62.5 kg × 8");
+    expect(setLine({ reps: 12, load: null }, "lb")).toBe("12 reps");
+    expect(setLine({ reps: 1, load: null }, "lb")).toBe("1 rep");
   });
 
   it("summarises last time with a shared or changing weight", () => {
@@ -208,15 +210,6 @@ describe("text helpers", () => {
     expect(lastSessionLine([{ reps: 12, load: 50 }, { reps: 10, load: 55 }], "lb")).toBe("50 lb × 12, 55 lb × 10");
     expect(lastSessionLine([{ reps: 8, load: null }, { reps: 7, load: null }], "kg")).toBe("8, 7 reps");
     expect(lastSessionLine([], "lb")).toBe("");
-  });
-
-  it("writes the Log set band's value from the draft", () => {
-    const draft = { reps: 6, load: 160, rir: 2, warmup: false, pain: false, note: "" };
-    expect(draftSummary(draft, exercise())).toBe("160 × 6, 2 RIR");
-    expect(draftSummary({ ...draft, rir: null }, exercise())).toBe("160 × 6");
-    expect(draftSummary({ ...draft, warmup: true }, exercise())).toBe("160 × 6");
-    expect(draftSummary({ ...draft, load: null }, exercise({ load_type: "bodyweight" }))).toBe("6 reps, 2 RIR");
-    expect(draftSummary({ ...draft, reps: 1, load: null }, exercise({ load_type: "bodyweight" }))).toBe("1 rep, 2 RIR");
   });
 
   it("measures minutes", () => {
@@ -259,6 +252,37 @@ describe("grouping and progress", () => {
     expect(firstOpenIndex([{ workSets: 3, target: 3 }, { workSets: 1, target: 3 }, { workSets: 0, target: 3 }])).toBe(1);
     expect(firstOpenIndex([{ workSets: 3, target: 3 }])).toBe(-1);
     expect(firstOpenIndex([{ workSets: 4, target: 3 }])).toBe(-1);
+  });
+});
+
+describe("nextToDo", () => {
+  const slots = [
+    { id: "a", workSets: 3, target: 3 },
+    { id: "b", workSets: 1, target: 3 },
+    { id: "c", workSets: 0, target: 2 },
+  ];
+
+  it("stays on the exercise while it has sets left, counting the set just saved", () => {
+    expect(nextToDo(slots, "b", true)).toBe("b");
+    expect(nextToDo(slots, "c", true)).toBe("c");
+  });
+
+  it("moves on to the next exercise with sets left once the last set of one is saved", () => {
+    expect(nextToDo([{ id: "a", workSets: 2, target: 3 }, ...slots.slice(1)], "a", true)).toBe("b");
+    expect(nextToDo([slots[0], { id: "b", workSets: 2, target: 3 }, slots[2]], "b", true)).toBe("c");
+  });
+
+  it("does not count a warmup as a set", () => {
+    expect(nextToDo([{ id: "a", workSets: 2, target: 3 }, slots[2]], "a", false)).toBe("a");
+  });
+
+  it("goes back to an exercise that was skipped, and says null when everything is done", () => {
+    expect(nextToDo([{ id: "a", workSets: 0, target: 3 }, { id: "b", workSets: 2, target: 3 }], "b", true)).toBe("a");
+    expect(nextToDo([{ id: "a", workSets: 3, target: 3 }, { id: "b", workSets: 2, target: 3 }], "b", true)).toBeNull();
+  });
+
+  it("starts from the top when the current exercise is not in the list", () => {
+    expect(nextToDo(slots, "gone", false)).toBe("b");
   });
 });
 

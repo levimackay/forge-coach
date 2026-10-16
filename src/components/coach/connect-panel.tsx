@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { getSupabase } from "@/lib/supabase/client";
 import { devFixtureActive } from "@/lib/local/session";
-import { Button, IconChevronRight, Sheet, named, useToast } from "@/components/ui";
+import { Button, IconChevronRight, Sheet, useToast } from "@/components/ui";
 import { copyText } from "./browser-actions";
 import { splitGrants, toGrants, type Grant, type GrantLookup } from "./connection";
 import { dateText } from "./format";
@@ -76,15 +76,6 @@ export function ConnectPanel() {
     <div className="flex flex-col gap-4">
       <div className="border-b border-rule">
         <StatusLine online={online} result={result} split={split} nowIso={nowIso} />
-        {connected ? (
-          <div className="grid grid-cols-[var(--label-col)_minmax(0,1fr)] border-t border-rule py-3">
-            <span>Access</span>
-            <p className="text-why">
-              Claude can read your training data and propose program changes. It cannot approve them. You approve every change in this
-              tab.
-            </p>
-          </div>
-        ) : null}
       </div>
       {connected || result ? (
         <div className="flex flex-wrap items-center">
@@ -143,31 +134,20 @@ export function ConnectPanel() {
 
 function SetupSteps() {
   return (
-    <div className="flex flex-col gap-4">
-      <h3 className="text-name">{named("Connect Claude")}</h3>
-      <p className="text-why">
-        Claude can then read your sessions and suggest program changes, which appear above for you to approve. Connect it once on a
-        computer; after that it works in the Claude app on your iPhone.
-      </p>
-      <Steps>
-        <p>Open claude.ai in a browser and sign in.</p>
-        <p>{"Go to Customize > Connectors > Add custom connector."}</p>
-        <>
-          <p>Paste this address as the server URL.</p>
-          <CopyField label="Server URL" value={MCP_URL} missing="NEXT_PUBLIC_MCP_URL is not set in this build." />
-        </>
-        <>
-          <p>Choose Use your own OAuth client, then paste this client ID. Leave the client secret empty.</p>
-          <CopyField label="Client ID" value={CLIENT_ID} missing="NEXT_PUBLIC_MCP_OAUTH_CLIENT_ID is not set in this build." />
-        </>
-        <p>Choose Connect. Claude opens the FORGE sign-in page. Sign in with your FORGE account and approve what Claude can do.</p>
-        <p>Open the Claude app on your iPhone, start a chat and switch the FORGE connector on for it. Then ask about your training.</p>
-      </Steps>
-      <p className="text-why">
-        This page only says Claude is connected after Supabase lists a grant for it. If a step fails, remove the connector in Claude and
-        add it again; its sign-in settings cannot be edited.
-      </p>
-    </div>
+    <Steps>
+      <p>Open claude.ai in a browser and sign in.</p>
+      <p>{"Go to Customize > Connectors > Add custom connector."}</p>
+      <>
+        <p>Paste this address as the server URL.</p>
+        <CopyField label="Server URL" value={MCP_URL} missing="Not available in this build." />
+      </>
+      <>
+        <p>Choose Use your own OAuth client, then paste this client ID. Leave the client secret empty.</p>
+        <CopyField label="Client ID" value={CLIENT_ID} missing="Not available in this build." />
+      </>
+      <p>Choose Connect. Claude opens the FORGE sign-in page. Sign in with your FORGE account and approve what Claude can do.</p>
+      <p>Open the Claude app on your iPhone, start a chat and switch the FORGE connector on for it. Then ask about your training.</p>
+    </Steps>
   );
 }
 
@@ -230,7 +210,7 @@ function CopyField({ label, value, missing }: { label: string; value: string | u
         className="-ml-4 self-start"
         onClick={async () => toast((await copyText(value)) ? `${label} copied.` : "Could not copy. Select the text and copy it by hand.", { tone: "neutral" })}
       >
-        {`Copy ${label.toLowerCase()}`}
+        {`Copy ${label}`}
       </Button>
     </div>
   );

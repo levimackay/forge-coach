@@ -11,7 +11,6 @@ import { named } from "@/components/ui/name";
 import { Sheet } from "@/components/ui/sheet";
 import { useToast } from "@/components/ui/toast";
 import { ScreenBar } from "@/components/shell/screen-bar";
-import { SyncChip } from "@/components/shell/sync-chip";
 import {
   useActiveProgram,
   useEquipmentProfiles,
@@ -26,7 +25,7 @@ import type { EquipmentProfile, Exercise, PlannedExercise, Unit } from "@/lib/do
 import { isUsable, loadIncrement, type EquipmentLike } from "@/lib/engine";
 import type { PplVariant } from "@/lib/templates/ppl";
 import { Chip, Figure, Notice, ScreenTitle, SectionTitle, SheetBand } from "./bits";
-import { EQUIPMENT_NAME, MUSCLES, MUSCLE_LABEL, countLabel, formatNumber, formatPrescription } from "./format";
+import { EQUIPMENT_NAME, MUSCLES, MUSCLE_LABEL, formatNumber, formatPrescription } from "./format";
 import {
   MAX_REPS,
   MAX_REST_SECONDS,
@@ -44,6 +43,12 @@ import { createPplProgram } from "./program-build";
 import { pickNextDay } from "./rotation";
 import { ScreenSkeleton } from "./skeletons";
 import { usesLoad } from "./workout-model";
+
+const back = (
+  <ButtonLink href="/more" variant="ghost" size="sm" className="-ml-2">
+    Back
+  </ButtonLink>
+);
 
 export function ProgramScreen() {
   const active = useActiveProgram();
@@ -99,9 +104,7 @@ function NoProgram({ library, equipment }: { library: Exercise[]; equipment: Equ
             Set up FORGE
           </ButtonLink>
         }
-      >
-        Tell FORGE what equipment you have and it builds a push, pull, legs program for you.
-      </EmptyState>
+      />
     );
   }
 
@@ -118,8 +121,8 @@ function NoProgram({ library, equipment }: { library: Exercise[]; equipment: Equ
   return (
     <div className="flex flex-col gap-6 pb-[var(--band-height)]">
       <div>
-        <ScreenBar start={<SyncChip />} />
-        <ScreenTitle title="Program">You do not have an active program. Build one from your equipment.</ScreenTitle>
+        <ScreenBar start={back} />
+        <ScreenTitle title="Program" />
       </div>
       {library.length === 0 ? (
         <Notice
@@ -177,7 +180,7 @@ function ProgramView({
   onPickDay: (id: string) => void;
 }) {
   const { toast } = useToast();
-  const { program, days, planned } = active;
+  const { days, planned } = active;
   const day = days.find((d) => d.id === dayId) ?? null;
   const libraryById = useMemo(() => new Map(library.map((e) => [e.id, e])), [library]);
   const items = useMemo(() => planned.filter((p) => p.program_day_id === day?.id), [planned, day]);
@@ -200,61 +203,48 @@ function ProgramView({
   };
 
   return (
-    <div className="pb-4">
-      <ScreenBar start={<SyncChip />} />
-      <ScreenTitle title="Program">
-        <p>
-          {program.name}, {program.days_per_week} days a week
-        </p>
-        {program.notes ? <p className="pt-1">{program.notes}</p> : null}
-      </ScreenTitle>
+    <div className="pb-[var(--band-height)]">
+      <ScreenBar start={back} />
+      <ScreenTitle title="Program" />
 
-      <div role="group" aria-label="Program days" className="-mx-2.5 flex flex-wrap pb-2">
-        {days.map((d) => (
-          <Chip key={d.id} selected={d.id === day.id} onClick={() => onPickDay(d.id)}>
-            {d.name}
-          </Chip>
-        ))}
-      </div>
-
-      <section aria-label={day.name}>
-        <SectionTitle aside={`${countLabel(items.length, "exercise")}${dayEquipment ? `, ${dayEquipment.name}` : ""}`}>
-          {day.name}
-        </SectionTitle>
-        {items.length === 0 ? (
-          <p className="border-y border-rule py-3">No exercises on this day. Add one below.</p>
-        ) : (
-          <ListGroup label={`${day.name} exercises`} className="border-t border-rule">
-            {items.map((p) => {
-              const ex = libraryById.get(p.exercise_id);
-              return (
-                <ListRow
-                  key={p.id}
-                  title={named(ex?.name ?? "Exercise")}
-                  name
-                  subtitle={formatPrescription(p)}
-                  trailing={
-                    ex && usesLoad(ex) ? (
-                      p.load !== null ? <Figure size={24} value={formatNumber(p.load)} unit={unit} /> : "No weight"
-                    ) : undefined
-                  }
-                  onClick={() => setEditingId(p.id)}
-                  chevron
-                />
-              );
-            })}
-          </ListGroup>
-        )}
-        <div className="pt-2">
-          <Button variant="secondary" fullWidth onClick={() => setAdding(true)}>
-            Add an exercise
-          </Button>
+      {days.length > 1 ? (
+        <div role="group" aria-label="Program days" className="-mx-2.5 flex flex-wrap pb-2">
+          {days.map((d) => (
+            <Chip key={d.id} selected={d.id === day.id} onClick={() => onPickDay(d.id)}>
+              {d.name}
+            </Chip>
+          ))}
         </div>
-      </section>
+      ) : null}
 
-      <p className="pt-6">
-        Changes save as you make them. After each workout FORGE still adjusts weights and reps from what you lifted.
-      </p>
+      {items.length === 0 ? (
+        <p className="border-y border-rule py-3">Nothing on this day yet.</p>
+      ) : (
+        <ListGroup label={`${day.name} exercises`} className="border-t border-rule">
+          {items.map((p) => {
+            const ex = libraryById.get(p.exercise_id);
+            return (
+              <ListRow
+                key={p.id}
+                title={named(ex?.name ?? "Exercise")}
+                name
+                subtitle={formatPrescription(p)}
+                trailing={
+                  ex && usesLoad(ex) ? (
+                    p.load !== null ? <Figure size={24} value={formatNumber(p.load)} unit={unit} /> : "No weight"
+                  ) : undefined
+                }
+                onClick={() => setEditingId(p.id)}
+                chevron
+              />
+            );
+          })}
+        </ListGroup>
+      )}
+
+      <Button variant="primary" pinned="tabs" onClick={() => setAdding(true)}>
+        Add an exercise
+      </Button>
 
       <PlannedEditSheet
         planned={editing}
@@ -382,7 +372,6 @@ function EditForm({
           value={edit.rep_min}
           min={1}
           max={MAX_REPS}
-          hint="The bottom of the rep range. Every set should reach it."
           onChange={(rep_min) => setEdit({ ...edit, ...clampReps({ rep_min }, edit) })}
         />
         <NumberStepper
@@ -390,15 +379,13 @@ function EditForm({
           value={edit.rep_max}
           min={1}
           max={MAX_REPS}
-          hint="Reach it on every set and the weight goes up."
           onChange={(rep_max) => setEdit({ ...edit, ...clampReps({ rep_max }, edit) })}
         />
         <NumberStepper
-          label="RIR"
+          label="Reps left"
           value={edit.target_rir}
           min={0}
           max={MAX_RIR}
-          hint="Reps in reserve: how many reps to leave in the tank on each set."
           onChange={(target_rir) => setEdit({ ...edit, target_rir })}
         />
         {usesLoad(exercise) ? (
@@ -419,14 +406,12 @@ function EditForm({
           step={15}
           min={0}
           max={MAX_REST_SECONDS}
-          hint="Rest between sets."
           onChange={(rest_seconds) => setEdit({ ...edit, rest_seconds })}
         />
         <div className="border-t border-rule" />
       </div>
 
       <div>
-        <SectionTitle>{`Position ${index + 1} of ${order.length}`}</SectionTitle>
         <div className="grid h-14 grid-cols-2 border-y border-rule">
           <button
             type="button"
@@ -455,7 +440,7 @@ function EditForm({
           loading={busy}
           onClick={() => void run(() => savePlannedEdit(planned, edit), "The changes were not saved. Try again.")}
         >
-          Save changes
+          Save
         </Button>
       </SheetBand>
 
@@ -465,7 +450,7 @@ function EditForm({
         library={library}
         equipment={equipment}
         exclude={new Set([exercise.id])}
-        note="Swapping clears the weight, because a weight belongs to its exercise."
+        note="The weight is cleared."
         onClose={() => setSwapping(false)}
         onPick={(picked) => {
           setSwapping(false);

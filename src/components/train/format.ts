@@ -20,12 +20,11 @@ export function formatRepRange(min: number, max: number): string {
   return min === max ? String(min) : `${min} to ${max}`;
 }
 
-type Prescription = Pick<PrescriptionSnapshot, "sets" | "rep_min" | "rep_max" | "target_rir">;
+type Prescription = Pick<PrescriptionSnapshot, "sets" | "rep_min" | "rep_max">;
 
-/** "3 sets of 8 to 12 at 2 RIR" */
+/** "3 sets of 8 to 12" */
 export function formatPrescription(p: Prescription): string {
-  const sets = `${p.sets} ${p.sets === 1 ? "set" : "sets"} of ${formatRepRange(p.rep_min, p.rep_max)}`;
-  return `${sets} at ${p.target_rir} RIR`;
+  return `${p.sets} ${p.sets === 1 ? "set" : "sets"} of ${formatRepRange(p.rep_min, p.rep_max)}`;
 }
 
 /**
@@ -89,17 +88,45 @@ export function formatDay(date: string): string {
   return formatDate(`${date}T12:00:00Z`, { timeZone: "UTC" });
 }
 
-export const ACTION_LABEL: Record<ProgressionAction, string> = {
-  increase_load: "Weight goes up",
-  increase_reps: "Aim for more reps",
-  hold: "Stays the same",
-  advance_variation: "Harder variation",
-  regress_variation: "Easier variation",
-  deload: "Lighter to rebuild",
-  reduce_after_gap: "Eased back after a break",
-  pain_hold: "Held because of pain",
-  substitute_equipment: "Swapped for your equipment",
-};
+/**
+ * The plain line under a lift the engine moved, or null when it left the lift as it was.
+ * Less assistance is more work, so an assisted lift reads differently.
+ */
+export function changeLabel(action: ProgressionAction, assisted = false): string | null {
+  switch (action) {
+    case "increase_load":
+      return assisted ? "Less help than last time" : "Up from last time";
+    case "increase_reps":
+      return "More reps than last time";
+    case "advance_variation":
+      return "A harder version";
+    case "regress_variation":
+      return "An easier version";
+    case "deload":
+      return "Lighter than last time";
+    case "reduce_after_gap":
+      return "Lighter after time off";
+    case "substitute_equipment":
+      return "Swapped to fit your equipment";
+    default:
+      return null;
+  }
+}
+
+/**
+ * The engine, and Claude, write effort as "RIR". On screen it is reps left, so "at 1 to 2 RIR" reads
+ * "with 1 to 2 reps left".
+ */
+export function plainReason(text: string): string {
+  const reps = (n: string) => `${n} ${n === "1" ? "rep" : "reps"}`;
+  return text
+    .replace(/did not log RIR/g, "did not log how it felt")
+    .replace(/\bat (\d+) to (\d+) RIR/g, (_, a, b) => `with ${a} to ${b} reps left`)
+    .replace(/\bat (\d+) RIR/g, (_, n) => `with ${reps(n)} left`)
+    .replace(/(\d+) RIR/g, (_, n) => `${reps(n)} left`)
+    .replace(/\be1RM\b/g, "estimated max")
+    .replace(/\bRIR\b/g, "reps left");
+}
 
 export const MUSCLE_LABEL: Record<Muscle, string> = {
   chest: "Chest",

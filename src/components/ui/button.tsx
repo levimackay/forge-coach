@@ -32,8 +32,8 @@ const BAND =
   "focus-visible:-outline-offset-4";
 
 const BAND_HEIGHT: Record<string, string> = {
-  primary: "min-h-16",
-  danger: "min-h-16",
+  primary: "min-h-[var(--band-height)]",
+  danger: "min-h-[var(--band-height)]",
   live: "min-h-[calc(var(--live-band-height)+env(safe-area-inset-bottom))] pb-safe",
 };
 
@@ -126,7 +126,7 @@ function Content({
 }
 
 interface BandContent {
-  /** Bands only. Right-aligned value the action applies, such as "160 × 6, 2 RIR". */
+  /** Bands only. Right-aligned value the action applies, such as "160 × 6". */
   detail?: ReactNode;
 }
 

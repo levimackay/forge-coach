@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   ALL_EQUIPMENT,
+  changeLabel,
   EQUIPMENT_NAME,
   MUSCLES,
   MUSCLE_LABEL,
@@ -15,6 +16,7 @@ import {
   formatPrescription,
   formatRepRange,
   formatWeekday,
+  plainReason,
 } from "./format";
 
 describe("formatNumber and formatLoad", () => {
@@ -28,13 +30,33 @@ describe("formatNumber and formatLoad", () => {
 });
 
 describe("formatPrescription", () => {
-  it("states sets, rep range and RIR", () => {
-    expect(formatPrescription({ sets: 3, rep_min: 8, rep_max: 12, target_rir: 2 })).toBe("3 sets of 8 to 12 at 2 RIR");
+  it("states sets and rep range, with no effort jargon", () => {
+    expect(formatPrescription({ sets: 3, rep_min: 8, rep_max: 12 })).toBe("3 sets of 8 to 12");
   });
 
   it("handles one set and a fixed rep count", () => {
-    expect(formatPrescription({ sets: 1, rep_min: 5, rep_max: 5, target_rir: 0 })).toBe("1 set of 5 at 0 RIR");
+    expect(formatPrescription({ sets: 1, rep_min: 5, rep_max: 5 })).toBe("1 set of 5");
     expect(formatRepRange(5, 5)).toBe("5");
+  });
+});
+
+describe("changeLabel", () => {
+  it("says something only when the engine moved the lift", () => {
+    expect(changeLabel("increase_load")).toBe("Up from last time");
+    expect(changeLabel("increase_reps")).toBe("More reps than last time");
+    expect(changeLabel("substitute_equipment")).toBe("Swapped to fit your equipment");
+    expect(changeLabel("hold")).toBeNull();
+    expect(changeLabel("pain_hold")).toBeNull();
+  });
+
+  it("does not call less assistance an increase", () => {
+    expect(changeLabel("increase_load", true)).toBe("Less help than last time");
+  });
+
+  it("has plain words for every other move", () => {
+    for (const action of ["advance_variation", "regress_variation", "deload", "reduce_after_gap"] as const) {
+      expect(changeLabel(action)).toMatch(/^[A-Z][a-z ]+$/);
+    }
   });
 });
 
@@ -92,5 +114,21 @@ describe("labels", () => {
   it("pluralises", () => {
     expect(countLabel(1, "set")).toBe("1 set");
     expect(countLabel(3, "set")).toBe("3 sets");
+  });
+});
+
+describe("plainReason", () => {
+  it("says reps left where the engine says RIR", () => {
+    expect(plainReason("You hit 10 reps on all 3 sets at 1 to 2 RIR, so the bar goes up to 140 lb.")).toBe(
+      "You hit 10 reps on all 3 sets with 1 to 2 reps left, so the bar goes up to 140 lb.",
+    );
+    expect(plainReason("2 sets ended at 0 RIR against a target of 1 RIR, so hold.")).toBe(
+      "2 sets ended with 0 reps left against a target of 1 rep left, so hold.",
+    );
+    expect(plainReason("You hit 8 reps but did not log RIR, so hold.")).toBe("You hit 8 reps but did not log how it felt, so hold.");
+  });
+
+  it("leaves a reason with no jargon alone", () => {
+    expect(plainReason("Your program changed.")).toBe("Your program changed.");
   });
 });

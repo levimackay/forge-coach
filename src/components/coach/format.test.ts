@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ACTION_LABEL, loadText, repRangeText, restText, sentence, timeAgo } from "./format";
+import { loadText, repRangeText, restText, sentence, timeAgo } from "./format";
 
 describe("text helpers", () => {
   it("turns snake case into a sentence", () => {
@@ -18,10 +18,6 @@ describe("text helpers", () => {
     expect(restText(45)).toBe("45 sec");
     expect(restText(120)).toBe("2 min");
     expect(restText(150)).toBe("2 min 30 sec");
-  });
-
-  it("never uses an em dash in user facing action labels", () => {
-    for (const label of Object.values(ACTION_LABEL)) expect(label).not.toContain(String.fromCharCode(0x2014));
   });
 });
 

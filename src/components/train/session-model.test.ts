@@ -93,7 +93,7 @@ describe("describeChange", () => {
       "Weight: 140 lb (was 135 lb)",
       "Sets: 4 (was 3)",
       "Rep range: 8 to 12 (was 6 to 10)",
-      "Target RIR: 1 (was 2)",
+      "Reps left in the tank: 1 (was 2)",
     ]);
   });
 

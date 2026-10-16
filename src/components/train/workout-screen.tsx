@@ -1,42 +1,35 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Field } from "@/components/ui/field";
-import { ListRow } from "@/components/ui/list-row";
 import { named } from "@/components/ui/name";
-import { NumberStepper } from "@/components/ui/number-stepper";
-import { Sheet } from "@/components/ui/sheet";
-import { ScreenBar } from "@/components/shell/screen-bar";
-import { SyncChip } from "@/components/shell/sync-chip";
+import { useToast } from "@/components/ui/toast";
 import { completeWorkout, useWorkoutSets } from "@/lib/local";
 import type { Exercise, WorkoutSet } from "@/lib/domain/types";
-import { BottomBand, Notice } from "./bits";
-import { ExerciseNav } from "./exercise-nav";
-import { ExercisePanel, type Slot } from "./exercise-panel";
-import { countLabel, formatDuration } from "./format";
+import { EndSheet } from "./end-sheet";
+import { MoreSheet, type MoreSheetProps } from "./more-sheet";
 import {
   buildPlan,
-  itemNote,
   resolveEquipment,
   setSwap,
   useWorkoutData,
   type PlanContext,
   type WorkoutData,
 } from "./queries";
-import { RestClock, RestControls, SessionClock, loadRest, saveRest, type RestState } from "./rest-bar";
+import { RestScreen } from "./rest-screen";
+import { loadRest, saveRest, type RestState } from "./rest-state";
 import { SessionDetail } from "./session-detail";
 import { discardWorkout, removeSet, restoreSet, saveSetEdit, type SetEdit } from "./session-actions";
+import { LoggerBar, SetEntryLoader, type EntryChrome, type Slot } from "./set-entry";
 import { SetEditSheet, SwapSheet } from "./set-sheets";
 import { ScreenSkeleton } from "./skeletons";
-import { useNow } from "./use-now";
 import {
   currentExerciseId,
   firstOpenIndex,
   groupByPlanned,
-  minutesBetween,
+  nextToDo,
   restSecondsFor,
   sessionTotals,
   workSetsOf,
@@ -87,7 +80,7 @@ export function WorkoutScreen() {
           </ButtonLink>
         }
       >
-        Its sets stay on this device but do not affect your plan.
+        Its sets do not count toward your plan.
       </EmptyState>
     );
   }
@@ -105,17 +98,52 @@ export function WorkoutScreen() {
       </EmptyState>
     );
   }
-  return <Logger data={data as WorkoutData & { ctx: PlanContext }} sets={sets} />;
+  return <Logger data={data as WorkoutData & { ctx: PlanContext }} liveSets={sets} />;
 }
 
-function Logger({ data, sets }: { data: WorkoutData & { ctx: PlanContext }; sets: WorkoutSet[] }) {
+/** The screen between exercises and at the very end: a name, a line, and the one thing to do next. */
+function Between({
+  chrome,
+  title,
+  line,
+  action,
+  onAction,
+}: {
+  chrome: EntryChrome;
+  title: string;
+  line?: string;
+  action: string;
+  onAction: () => void;
+}) {
+  return (
+    <div className="pb-[calc(var(--live-band-height)+env(safe-area-inset-bottom)+16px)]">
+      <LoggerBar {...chrome} />
+      <h1 className="text-head font-medium">{title}</h1>
+      {line ? <p className="mt-1.5 font-light">{line}</p> : null}
+      <Button variant="live" pinned="bottom" onClick={onAction}>
+        {action}
+      </Button>
+    </div>
+  );
+}
+
+function Logger({ data, liveSets }: { data: WorkoutData & { ctx: PlanContext }; liveSets: WorkoutSet[] }) {
   const { workout, ctx, swaps } = data;
   const router = useRouter();
-  const now = useNow();
+  const { toast } = useToast();
 
   const equipment = resolveEquipment(ctx, workout.equipment_profile_id);
   const plan = useMemo(() => buildPlan(ctx, equipment, workout.started_at), [ctx, equipment, workout.started_at]);
   const libraryById = useMemo(() => new Map(ctx.library.map((e) => [e.id, e])), [ctx.library]);
+
+  // A set counts the moment it is saved, before the live read of the sets catches up. Without
+  // this, the rest screen would name the set that was just done as the next one for a moment.
+  const [pending, setPending] = useState<WorkoutSet | null>(null);
+  if (pending && liveSets.some((s) => s.id === pending.id)) setPending(null);
+  const sets = useMemo(
+    () => (pending && !liveSets.some((s) => s.id === pending.id) ? [...liveSets, pending] : liveSets),
+    [liveSets, pending],
+  );
   const byPlanned = useMemo(() => groupByPlanned(sets), [sets]);
 
   const slots: Slot[] = useMemo(
@@ -132,62 +160,55 @@ function Logger({ data, sets }: { data: WorkoutData & { ctx: PlanContext }; sets
       }),
     [plan, byPlanned, swaps, libraryById],
   );
+  const counts = useMemo(
+    () => slots.map((s) => ({ id: s.item.planned.id, workSets: s.workSets, target: s.item.prescription.sets })),
+    [slots],
+  );
 
   // Until the lifter picks an exercise, the first one with sets left is the current one.
   const [picked, setPicked] = useState<string | null | undefined>(undefined);
-  const [listOpen, setListOpen] = useState(false);
-  const firstOpen = firstOpenIndex(slots.map((s) => ({ workSets: s.workSets, target: s.item.prescription.sets })));
+  const firstOpen = firstOpenIndex(counts);
   const openId = picked === undefined ? (slots[firstOpen]?.item.planned.id ?? null) : picked;
   const current = slots.find((s) => s.item.planned.id === openId) ?? null;
-
-  useEffect(() => {
-    // A new exercise starts at the top, under the clock.
-    if (picked) window.scrollTo({ top: 0 });
-  }, [picked]);
+  const currentId = current?.item.planned.id ?? null;
+  // Exercises that were asked for one more set after finishing their planned ones.
+  const [extra, setExtra] = useState<string[]>([]);
+  const currentDone = current !== null && current.workSets >= current.item.prescription.sets && !extra.includes(currentId ?? "");
 
   const [rest, setRest] = useState<RestState | null>(() => loadRest(workout.id));
-  const changeRest = useCallback(
-    (next: RestState | null) => {
-      setRest(next);
-      saveRest(workout.id, next);
-    },
-    [workout.id],
-  );
+  const endRest = useCallback(() => {
+    setRest(null);
+    saveRest(workout.id, null);
+  }, [workout.id]);
 
+  const [moreOpen, setMoreOpen] = useState(false);
   const [editing, setEditing] = useState<{ set: WorkoutSet; number: number } | null>(null);
   const [swapping, setSwapping] = useState<Slot | null>(null);
-  const [finishOpen, setFinishOpen] = useState(false);
-  const [discardOpen, setDiscardOpen] = useState(false);
+  const [endOpen, setEndOpen] = useState(false);
   const [announcement, setAnnouncement] = useState("");
-  const [undo, setUndo] = useState<WorkoutSet | null>(null);
-  const [discardError, setDiscardError] = useState<string | null>(null);
-
-  // The undo offer lasts a few seconds. It is a notice in the page, not a toast, because
-  // a toast would sit on top of the Log set button.
-  useEffect(() => {
-    if (!undo) return;
-    const timer = setTimeout(() => setUndo(null), 7000);
-    return () => clearTimeout(timer);
-  }, [undo]);
-
-  const totals = sessionTotals(sets);
-  const allDone = slots.length > 0 && firstOpen === -1;
-  const minutes = now === null ? null : minutesBetween(workout.started_at, now);
 
   const handleLogged = (slot: Slot, set: WorkoutSet) => {
+    setPending(set);
+    const work = !set.is_warmup;
     setAnnouncement(
-      set.is_warmup
-        ? `Warmup logged for ${slot.exercise.name}.`
-        : `Set ${slot.workSets + 1} logged for ${slot.exercise.name}.`,
+      work ? `Set ${slot.workSets + 1} logged for ${slot.exercise.name}.` : `Warmup logged for ${slot.exercise.name}.`,
     );
+    const plannedId = slot.item.planned.id;
+    if (work) setExtra((ids) => ids.filter((id) => id !== plannedId));
+    // The same exercise while it has sets left, then the next with sets left, then any that were skipped.
+    const nextId = nextToDo(counts, plannedId, work);
+    setPicked(nextId);
+    // The last set of the workout has no rest after it: it goes straight to ending the workout.
+    if (nextId === null) {
+      setEndOpen(true);
+      return;
+    }
     const seconds = restSecondsFor(slot.item.planned, set.is_warmup);
-    // The rest runs from the moment the set was saved.
-    changeRest({ endsAt: Date.parse(set.completed_at) + seconds * 1000, total: seconds });
-    // The last planned set of an exercise moves the lifter on to the next one.
-    if (!set.is_warmup && slot.workSets + 1 === slot.item.prescription.sets) {
-      const index = slots.indexOf(slot);
-      const next = slots.find((s, i) => i > index && s.workSets < s.item.prescription.sets);
-      setPicked(next ? next.item.planned.id : null);
+    if (seconds > 0) {
+      // The rest runs from the moment the set was saved.
+      const started: RestState = { endsAt: Date.parse(set.completed_at) + seconds * 1000, total: seconds };
+      setRest(started);
+      saveRest(workout.id, started);
     }
   };
 
@@ -199,8 +220,9 @@ function Logger({ data, sets }: { data: WorkoutData & { ctx: PlanContext }; sets
 
   const deleteSet = async (set: WorkoutSet) => {
     await removeSet(set.id);
+    setPending((p) => (p?.id === set.id ? null : p));
     setEditing(null);
-    setUndo(set);
+    toast("Set deleted", { action: { label: "Undo", onClick: () => void restoreSet(set) } });
   };
 
   const pickSwap = async (exercise: Exercise) => {
@@ -216,124 +238,118 @@ function Logger({ data, sets }: { data: WorkoutData & { ctx: PlanContext }; sets
   };
 
   const discard = async () => {
-    setDiscardError(null);
-    try {
-      await discardWorkout(workout);
-      saveRest(workout.id, null);
-      router.replace("/today");
-    } catch {
-      setDiscardError("The workout was not discarded. Try again.");
-    }
+    await discardWorkout(workout);
+    saveRest(workout.id, null);
+    router.replace("/today");
   };
 
+  const totals = sessionTotals(sets);
   const untrained = slots.filter((s) => s.workSets === 0).map((s) => s.exercise.name);
-  const editingExercise = editing ? libraryById.get(editing.set.exercise_id) : undefined;
+  const targetFor = (set: WorkoutSet) =>
+    slots.find((s) => s.item.planned.id === set.planned_exercise_id)?.item.prescription.target_rir ?? 2;
 
-  const entryTail = (
-    <>
-      {rest ? <RestControls rest={rest} onChange={changeRest} /> : null}
-      <ExerciseNav
-        slots={slots}
-        currentId={current?.item.planned.id ?? null}
-        open={listOpen}
-        ruled={!rest}
-        onToggle={() => setListOpen(!listOpen)}
-        onPick={(id) => {
-          setPicked(id);
-          setListOpen(false);
-        }}
+  const chrome: EntryChrome = { onMore: () => setMoreOpen(true), onEnd: () => setEndOpen(true) };
+
+  let workNumber = 0;
+  const numbered = (current?.logged ?? []).map((set) => ({ set, number: set.is_warmup ? 0 : ++workNumber }));
+  const moreProps: Omit<MoreSheetProps, "flags"> = {
+    open: moreOpen,
+    onClose: () => setMoreOpen(false),
+    unit: ctx.unit,
+    sets: numbered,
+    slots,
+    currentId,
+    canAddSet: currentDone,
+    onEditSet: (set, number) => {
+      setMoreOpen(false);
+      setEditing({ set, number });
+    },
+    onSwap: () => {
+      setMoreOpen(false);
+      setSwapping(current);
+    },
+    onPickExercise: (id) => {
+      setMoreOpen(false);
+      setPicked(id);
+    },
+    onAddSet: () => {
+      setMoreOpen(false);
+      if (currentId) setExtra((ids) => [...ids, currentId]);
+    },
+  };
+
+  const nextAfterDone = currentDone && currentId ? nextToDo(counts, currentId, false) : null;
+  const entry = slots.length > 0 && rest === null && current !== null && !currentDone;
+
+  let body;
+  if (slots.length === 0) {
+    body = (
+      <EmptyState
+        title="Nothing planned for this day"
+        action={
+          <ButtonLink href="/program" variant="secondary">
+            Add exercises
+          </ButtonLink>
+        }
+      >
+        Add exercises to this day in Program, then come back.
+      </EmptyState>
+    );
+  } else if (rest !== null) {
+    body = (
+      <RestScreen
+        rest={rest}
+        next={
+          current
+            ? { name: current.exercise.name, set: `Set ${current.workSets + 1} of ${current.item.prescription.sets}` }
+            : null
+        }
+        onDone={endRest}
       />
-    </>
-  );
+    );
+  } else if (current === null) {
+    body = <Between chrome={chrome} title="All sets done." action="Finish workout" onAction={() => setEndOpen(true)} />;
+  } else if (currentDone) {
+    body = (
+      <Between
+        chrome={chrome}
+        title={named(current.exercise.name)}
+        line={`All ${current.item.prescription.sets} sets done.`}
+        action={nextAfterDone ? "Next exercise" : "Finish workout"}
+        onAction={() => (nextAfterDone ? setPicked(nextAfterDone) : setEndOpen(true))}
+      />
+    );
+  } else {
+    body = (
+      <SetEntryLoader
+        slot={current}
+        workout={workout}
+        equipment={equipment}
+        unit={ctx.unit}
+        chrome={chrome}
+        onLogged={(set) => handleLogged(current, set)}
+        more={(flags) => <MoreSheet {...moreProps} flags={flags} />}
+      />
+    );
+  }
 
   return (
-    <div className="pb-[calc(var(--live-band-height)+env(safe-area-inset-bottom))]">
-      <header className="bleed sticky top-0 z-20 bg-ground">
-        <div className="px-safe">
-          <ScreenBar start={<span className="text-name">{named(ctx.day.name)}</span>} end={<SyncChip align="end" />} />
-        </div>
-        {rest ? (
-          <RestClock rest={rest} onChange={changeRest} next={current ? `Set ${current.workSets + 1} next` : ""} />
-        ) : (
-          <SessionClock minutes={minutes} sets={`${countLabel(totals.workSets, "set")} done`} />
-        )}
-      </header>
-
-      {undo ? (
-        <div role="status" className="mt-3">
-          <Notice
-            action={
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  void restoreSet(undo);
-                  setUndo(null);
-                }}
-              >
-                Undo
-              </Button>
-            }
-          >
-            Set deleted.
-          </Notice>
-        </div>
-      ) : null}
-
-      {slots.length === 0 ? (
-        <EmptyState
-          title="Nothing planned for this day"
-          action={
-            <ButtonLink href="/program" variant="secondary">
-              Add exercises
-            </ButtonLink>
-          }
-        >
-          Add exercises to this day in Program, then come back.
-        </EmptyState>
-      ) : current ? (
-        <ExercisePanel
-          key={current.item.planned.id}
-          slot={current}
-          note={itemNote(current.item, ctx.lastDecisions[current.item.planned.id])}
-          workout={workout}
-          libraryById={libraryById}
-          equipment={equipment}
-          unit={ctx.unit}
-          onLogged={(set) => handleLogged(current, set)}
-          onEdit={(set, number) => setEditing({ set, number })}
-          onSwap={() => setSwapping(current)}
-          tail={entryTail}
-        />
-      ) : (
-        entryTail
-      )}
-
-      <div className="pt-6">
-        <ListRow title="Finish workout" onClick={() => setFinishOpen(true)} disabled={totals.workSets === 0} chevron />
-        {totals.workSets === 0 ? <p className="py-3">Log at least one set to finish.</p> : null}
-        <ListRow title="Back to Today" href="/today" />
-        <ListRow title="Discard workout" onClick={() => setDiscardOpen(true)} />
-      </div>
+    <>
+      {body}
 
       <p role="status" className="sr-only">
         {announcement}
       </p>
 
-      {allDone && current === null ? (
-        <BottomBand>
-          <Button variant="primary" disabled={totals.workSets === 0} onClick={() => setFinishOpen(true)}>
-            Finish workout
-          </Button>
-        </BottomBand>
-      ) : null}
+      {entry || rest !== null ? null : <MoreSheet {...moreProps} flags={null} />}
 
       <SetEditSheet
         set={editing?.set ?? null}
         setNumber={editing?.number ?? 0}
-        exercise={editingExercise}
+        exercise={editing ? libraryById.get(editing.set.exercise_id) : undefined}
         unit={ctx.unit}
         equipment={equipment}
+        targetRir={editing ? targetFor(editing.set) : 2}
         onClose={() => setEditing(null)}
         onSave={saveEdit}
         onDelete={deleteSet}
@@ -343,129 +359,18 @@ function Logger({ data, sets }: { data: WorkoutData & { ctx: PlanContext }; sets
         current={swapping?.exercise ?? null}
         library={ctx.library}
         equipment={equipment}
-        equipmentName={equipment?.name ?? null}
         onClose={() => setSwapping(null)}
         onPick={(exercise) => void pickSwap(exercise)}
       />
 
-      <FinishSheet
-        open={finishOpen}
-        onClose={() => setFinishOpen(false)}
-        exercises={totals.exercises}
+      <EndSheet
+        open={endOpen}
+        onClose={() => setEndOpen(false)}
         workSets={totals.workSets}
-        minutes={minutes}
         untrained={untrained}
         onFinish={finish}
+        onDiscard={discard}
       />
-
-      <Sheet
-        open={discardOpen}
-        onClose={() => setDiscardOpen(false)}
-        title="Discard this workout?"
-        footer={
-          <div className="flex items-stretch">
-            <Button variant="secondary" size="lg" className="flex-1" onClick={() => setDiscardOpen(false)}>
-              Keep logging
-            </Button>
-            <Button variant="danger" className="flex-1" onClick={() => void discard()}>
-              Discard workout
-            </Button>
-          </div>
-        }
-      >
-        <div className="flex flex-col gap-3">
-          <p>
-            {totals.workSets > 0
-              ? `The ${countLabel(totals.workSets, "set")} you logged will not count toward your progress or change your plan.`
-              : "Nothing has been logged yet."}
-          </p>
-          {discardError ? (
-            <p role="alert" className="font-medium">
-              {discardError}
-            </p>
-          ) : null}
-        </div>
-      </Sheet>
-    </div>
-  );
-}
-
-function FinishSheet({
-  open,
-  onClose,
-  exercises,
-  workSets,
-  minutes,
-  untrained,
-  onFinish,
-}: {
-  open: boolean;
-  onClose: () => void;
-  exercises: number;
-  workSets: number;
-  minutes: number | null;
-  untrained: string[];
-  onFinish: (rpe: number | null, notes: string) => Promise<void>;
-}) {
-  const [rpe, setRpe] = useState<number | null>(null);
-  const [notes, setNotes] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const submit = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      await onFinish(rpe, notes);
-    } catch {
-      setError("The workout was not finished. Your sets are still saved. Try again.");
-      setBusy(false);
-    }
-  };
-
-  return (
-    <Sheet
-      open={open}
-      onClose={onClose}
-      title="Finish workout"
-      footer={
-        <>
-          {error ? (
-            <p role="alert" className="border-b border-rule px-safe py-3 font-medium">
-              {error}
-            </p>
-          ) : null}
-          <Button variant="primary" className="w-full" loading={busy} onClick={() => void submit()}>
-            Finish and update my plan
-          </Button>
-        </>
-      }
-    >
-      <div className="flex flex-col gap-5 pb-2">
-        <p>
-          {countLabel(exercises, "exercise")}, {countLabel(workSets, "work set")}
-          {minutes !== null ? `, ${formatDuration(minutes)}` : ""}.
-        </p>
-        {untrained.length > 0 ? <p>Not trained, so unchanged: {untrained.join(", ")}.</p> : null}
-        <div>
-          <NumberStepper
-            label="Session effort (RPE)"
-            value={rpe}
-            min={1}
-            max={10}
-            hint="How hard the whole session felt, from 1 (easy) to 10 (all out). Optional."
-            onChange={setRpe}
-          />
-        </div>
-        <Field
-          label="Notes (optional)"
-          multiline
-          rows={3}
-          maxLength={2000}
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-        />
-      </div>
-    </Sheet>
+    </>
   );
 }

@@ -1,53 +1,7 @@
-import type { Exercise, IsoDate, Unit, Workout } from "@/lib/domain/types";
-import { E1RM_REP_CAP, addDays, consistency, weekStart, type DecisionItem, type MuscleVolume, type SeriesPoint } from "@/lib/analytics";
-import type { BandRow, LinePoint, WeekColumn } from "@/components/charts";
-import { prescriptionRows, type DiffContext, type DiffRow } from "@/components/coach/diff";
-import { sentence } from "@/components/coach/format";
-import { num, shortDate } from "@/lib/reports/format";
-
-/** Seven day windows, oldest first, the last one holding `today`. Weeks start on Monday. */
-export function weekWindows(today: IsoDate, count: number): { from: IsoDate; to: IsoDate }[] {
-  const current = weekStart(today);
-  return Array.from({ length: count }, (_, i) => {
-    const from = addDays(current, -7 * (count - 1 - i));
-    return { from, to: addDays(from, 6) };
-  });
-}
-
-export interface ConsistencySummary {
-  columns: WeekColumn[];
-  /** Finished weeks only; the current week is still being trained. */
-  finishedCompleted: number;
-  finishedPlanned: number | null;
-  finishedWeeks: number;
-}
-
-export function consistencyColumns(input: {
-  workouts: Workout[];
-  daysPerWeek: number | null;
-  today: IsoDate;
-  timeZone: string;
-  weeks: number;
-}): ConsistencySummary {
-  const columns: WeekColumn[] = [];
-  let finishedCompleted = 0;
-  let finishedWeeks = 0;
-  for (const w of weekWindows(input.today, input.weeks)) {
-    const c = consistency({ workouts: input.workouts, daysPerWeek: input.daysPerWeek, from: w.from, to: w.to, timeZone: input.timeZone });
-    const inProgress = w.to >= input.today;
-    columns.push({ key: w.from, label: shortDate(w.from), completed: c.completed, planned: input.daysPerWeek, inProgress });
-    if (!inProgress) {
-      finishedCompleted += c.completed;
-      finishedWeeks += 1;
-    }
-  }
-  return {
-    columns,
-    finishedCompleted,
-    finishedPlanned: input.daysPerWeek === null ? null : input.daysPerWeek * finishedWeeks,
-    finishedWeeks,
-  };
-}
+import type { Exercise, Unit } from "@/lib/domain/types";
+import { E1RM_REP_CAP, type SeriesPoint } from "@/lib/analytics";
+import type { LinePoint } from "@/components/charts";
+import { plural, shortDate } from "@/lib/reports/format";
 
 export interface ExerciseOption {
   id: string;
@@ -68,179 +22,40 @@ export function exerciseOptions(keys: readonly (readonly [string, string])[], li
     .sort((a, b) => b.lastAt.localeCompare(a.lastAt) || a.name.localeCompare(b.name));
 }
 
-export type Metric = "e1rm" | "load" | "reps" | "volume";
+/** The one number a lift is judged by: the estimated max, or the most reps in a set. */
+export type Measure = "e1rm" | "reps";
 
-const metricValue = (p: SeriesPoint, metric: Metric): number | null => {
-  switch (metric) {
-    case "e1rm":
-      return p.top_e1rm;
-    case "load":
-      return p.top_load !== null && p.top_load > 0 ? p.top_load : null;
-    case "reps":
-      return p.max_reps;
-    case "volume":
-      return p.volume_load;
-  }
-};
-
-export interface MetricChoice {
-  value: Metric;
-  /** Short enough for a segment on a phone. */
-  label: string;
-  /** Full name, for the chart's accessible label. */
-  name: string;
-}
+export const MEASURE_LABEL: Record<Measure, string> = { e1rm: "Estimated max", reps: "Most reps in a set" };
 
 /**
- * The metrics worth charting for this exercise, the default first. An estimated max for plain bodyweight work
- * would only restate reps, so it is offered once weight is added. When most sessions go past the e1RM rep cap,
- * added reps do not move the estimate, so reps come first.
+ * The estimated max when there is one worth showing. It needs a weight that moves: a barbell or machine
+ * load, or weight added to a bodyweight lift. Plain bodyweight work, bodyweight lifts with no bodyweight on
+ * file, and lifts where most sessions go past the estimate's rep cap are told in reps instead.
  */
-export function availableMetrics(exercise: Pick<Exercise, "load_type">, series: readonly SeriesPoint[]): MetricChoice[] {
-  const has = (m: Metric) => series.some((p) => metricValue(p, m) !== null);
-  const addedLoad = has("load");
-  const out: MetricChoice[] = [];
-  if (has("e1rm") && (exercise.load_type === "external" || addedLoad)) {
-    out.push({ value: "e1rm", label: "e1RM", name: "estimated one rep max" });
-  }
-  if (addedLoad) {
-    const name = exercise.load_type === "external" ? "top load" : exercise.load_type === "bodyweight" ? "added load" : "assistance";
-    out.push({ value: "load", label: "Load", name });
-  }
-  const reps: MetricChoice = { value: "reps", label: "Reps", name: "best set reps" };
+export function headlineMeasure(exercise: Pick<Exercise, "load_type">, series: readonly SeriesPoint[]): Measure {
+  const hasEstimate = series.some((p) => p.top_e1rm !== null);
+  const movesWeight = exercise.load_type === "external" || series.some((p) => p.top_load !== null && p.top_load > 0);
   const highRep = series.filter((p) => p.max_reps > E1RM_REP_CAP).length * 2 > series.length;
-  if (highRep) out.unshift(reps);
-  else out.push(reps);
-  if (has("volume")) out.push({ value: "volume", label: "Volume", name: "total volume" });
-  return out;
+  return hasEstimate && movesWeight && !highRep ? "e1rm" : "reps";
 }
 
-export function metricUnit(metric: Metric, unit: Unit): string {
-  return metric === "reps" ? "reps" : unit;
+/** One point per finished workout. Workouts with no value for the measure are left out. */
+export function seriesToLine(series: readonly SeriesPoint[], measure: Measure): LinePoint[] {
+  return series.flatMap((p) => {
+    const y = measure === "e1rm" ? p.top_e1rm : p.max_reps;
+    return y === null ? [] : [{ x: Date.parse(p.started_at), y, label: shortDate(p.date) }];
+  });
 }
 
-/** Whole numbers for an estimate or a large total, one decimal for loads that move in half steps. */
-export function metricDigits(metric: Metric): number {
-  return metric === "volume" || metric === "e1rm" ? 0 : 1;
-}
+/** The screen shows whole numbers, and the change since the first point is worked out from those same numbers. */
+export const shown = (y: number): string => Math.round(y).toLocaleString("en-US");
 
-/** Points for the line chart. Sessions with no value for the metric are left out. */
-export function seriesToLine(series: readonly SeriesPoint[], metric: Metric): { points: LinePoint[]; source: SeriesPoint[] } {
-  const points: LinePoint[] = [];
-  const source: SeriesPoint[] = [];
-  for (const p of series) {
-    const y = metricValue(p, metric);
-    if (y === null) continue;
-    points.push({ x: Date.parse(p.started_at), y, label: shortDate(p.date) });
-    source.push(p);
-  }
-  return { points, source };
-}
-
-export function bestSetText(point: SeriesPoint, loadType: Exercise["load_type"], unit: Unit): string {
-  const { reps, load } = point.best_set;
-  const hasLoad = load !== null && load > 0;
-  if (loadType === "external") return hasLoad ? `${num(load as number)} ${unit} × ${reps}` : `${reps} reps`;
-  if (loadType === "bodyweight") return hasLoad ? `+${num(load as number)} ${unit} × ${reps}` : `${reps} reps`;
-  return hasLoad ? `${reps} reps with ${num(load as number)} ${unit} assistance` : `${reps} reps`;
-}
-
-/**
- * Splits a best set such as "160 lb × 6" into runs that are set as figures (the numbers and the sign)
- * and runs that are set as plain words (the unit).
- */
-export function figureGroups(text: string): { figure: boolean; text: string }[] {
-  const groups: { figure: boolean; text: string }[] = [];
-  for (const token of text.split(" ")) {
-    const figure = /[\d×]/.test(token);
-    const last = groups[groups.length - 1];
-    if (last && last.figure === figure) last.text += ` ${token}`;
-    else groups.push({ figure, text: token });
-  }
-  return groups;
-}
-
-export interface SessionFact {
-  label: string;
-  value: string;
-}
-
-/** The rows under the chart for the selected session. The first is always the best set. */
-export function sessionFacts(point: SeriesPoint, loadType: Exercise["load_type"], unit: Unit): SessionFact[] {
-  const facts: SessionFact[] = [{ label: "Best set", value: bestSetText(point, loadType, unit) }];
-  facts.push({ label: "Work sets", value: `${point.work_sets} ${point.work_sets === 1 ? "set" : "sets"}, ${point.total_reps} reps in total` });
-  if (point.avg_rir !== null) facts.push({ label: "Reps in reserve", value: `${num(point.avg_rir)} on average` });
-  if (point.pain) facts.push({ label: "Pain", value: "Flagged in this session" });
-  return facts;
-}
-
-/** "Up 15 lb since Oct 1" for a series of at least two points; null otherwise. */
-export function trendSummary(points: readonly LinePoint[], unit: string, digits = 1): string | null {
+/** "Up 6 lb since Sep 11". Null for fewer than two points. */
+export function sinceText(points: readonly LinePoint[], measure: Measure, unit: Unit): string | null {
   if (points.length < 2) return null;
   const first = points[0];
-  const last = points[points.length - 1];
-  const delta = Number((last.y - first.y).toFixed(digits));
-  const amount = `${num(Math.abs(delta), digits)} ${unit}`;
-  const sessions = `${points.length} sessions`;
-  if (delta === 0) return `No change since ${first.label} (${sessions})`;
-  return `${delta > 0 ? "Up" : "Down"} ${amount} since ${first.label} (${sessions})`;
-}
-
-/** "+6", "−2.5" or "0": a change with its sign, using a real minus sign. */
-export function signedFigure(delta: number, digits = 1): string {
-  const value = Number(delta.toFixed(digits));
-  const size = Math.abs(value).toLocaleString("en-US", { maximumFractionDigits: digits });
-  return value > 0 ? `+${size}` : value < 0 ? `−${size}` : size;
-}
-
-export interface TrendFigure {
-  /** The change since the first point, signed: "+6". */
-  value: string;
-  unit: string;
-  /** Label of the first point, such as "Sep 11". */
-  since: string;
-  sessions: number;
-}
-
-/** The trend as the parts Progress sets in type; null for fewer than two points. */
-export function trendFigure(points: readonly LinePoint[], unit: string, digits = 1): TrendFigure | null {
-  if (points.length < 2) return null;
-  const delta = points[points.length - 1].y - points[0].y;
-  return { value: signedFigure(delta, digits), unit, since: points[0].label, sessions: points.length };
-}
-
-export interface VolumeRows {
-  rows: BandRow[];
-  /** Muscles with no hard sets in the week, as display names. */
-  untrained: string[];
-  total: number;
-}
-
-export function volumeRows(volumes: readonly MuscleVolume[]): VolumeRows {
-  const trained = volumes.filter((v) => v.sets > 0).sort((a, b) => b.sets - a.sets || a.muscle.localeCompare(b.muscle));
-  return {
-    rows: trained.map((v) => ({
-      key: v.muscle,
-      label: sentence(v.muscle),
-      value: v.sets,
-      detail: `${v.direct_sets} direct ${v.direct_sets === 1 ? "set" : "sets"}, ${v.indirect_sets} indirect`,
-    })),
-    untrained: volumes.filter((v) => v.sets === 0).map((v) => sentence(v.muscle)),
-    total: volumes.reduce((n, v) => n + v.direct_sets, 0),
-  };
-}
-
-/** What an engine decision changed, as before and after rows. Empty for a hold. */
-export function decisionChangeRows(item: DecisionItem, ctx: DiffContext): DiffRow[] {
-  const rows: DiffRow[] = [];
-  if (item.from_exercise) rows.push({ label: "Exercise", before: item.from_exercise, after: item.exercise });
-  const changed = prescriptionRows(
-    ctx,
-    item.before,
-    { sets: item.after.sets, rep_min: item.after.rep_min, rep_max: item.after.rep_max, target_rir: item.after.target_rir, load: item.after.load },
-    item.after.exercise_id,
-  );
-  // After a variation change the old load belongs to a different exercise, so only the new one is shown.
-  for (const r of changed) rows.push(item.from_exercise && r.label === "Load" ? { ...r, before: null } : r);
-  return rows;
+  const delta = Math.round(points[points.length - 1].y) - Math.round(first.y);
+  if (delta === 0) return `No change since ${first.label}`;
+  const size = Math.abs(delta);
+  return `${delta > 0 ? "Up" : "Down"} ${measure === "reps" ? plural(size, "rep") : `${size.toLocaleString("en-US")} ${unit}`} since ${first.label}`;
 }

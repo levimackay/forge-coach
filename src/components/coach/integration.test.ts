@@ -1,23 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { bodyweightTrend, decisionDigest, exerciseSeries, localDate, weeklyHardSets } from "@/lib/analytics";
+import { exerciseSeries } from "@/lib/analytics";
 import { buildCoachPrompt } from "@/lib/reports";
-import {
-  availableMetrics,
-  consistencyColumns,
-  decisionChangeRows,
-  exerciseOptions,
-  seriesToLine,
-  volumeRows,
-  weekWindows,
-} from "@/app/progress/derive";
-import { loadTrainedKeys, loadTrainingWindow } from "@/app/progress/use-progress-data";
+import { exerciseOptions, headlineMeasure, seriesToLine, sinceText } from "@/app/progress/derive";
+import { loadTrainedKeys } from "@/app/progress/use-progress-data";
 import { getDb } from "@/lib/local/db";
 import { seedDevFixture } from "@/lib/local/dev-fixture";
 import {
   loadBodyMeasurements,
   loadExerciseLibrary,
   loadProfile,
-  loadProgressionDecisions,
   loadProposals,
   loadSetsForExercise,
   loadWorkouts,
@@ -25,7 +16,7 @@ import {
 import { freshLocalState } from "@/lib/local/test-support";
 import { describeAudit } from "./activity-log";
 import { reportFilename } from "./browser-actions";
-import { describeChanges } from "./diff";
+import { changeLines, describeChanges } from "./diff";
 import { generateReport } from "./report-data";
 import { buildCoachContext, loadProgramRows } from "./use-diff-context";
 
@@ -93,14 +84,14 @@ describe("progress screen data", () => {
     const series = exerciseSeries({ exercise: bench!, workouts, sets, bodyweight: profile?.bodyweight ?? null, timeZone: profile!.timezone });
     expect(series.length).toBeGreaterThanOrEqual(3);
 
-    const metrics = availableMetrics(bench!, series);
-    expect(metrics.map((m) => m.value)).toContain("e1rm");
-    const { points } = seriesToLine(series, "e1rm");
+    expect(headlineMeasure(bench!, series)).toBe("e1rm");
+    const points = seriesToLine(series, "e1rm");
     expect(points.length).toBeGreaterThanOrEqual(3);
     for (let i = 1; i < points.length; i++) expect(points[i].x).toBeGreaterThan(points[i - 1].x);
+    expect(sinceText(points, "e1rm", "lb")).toMatch(/^(Up|Down) \d+ lb since [A-Z][a-z]{2} \d+$|^No change since /);
   });
 
-  it("charts a bodyweight exercise by reps without an estimated max", async () => {
+  it("tells a bodyweight exercise in reps instead of an estimated max", async () => {
     const library = await loadExerciseLibrary();
     const chin = library.find((e) => e.slug === "chin-up");
     expect(chin).toBeDefined();
@@ -108,53 +99,8 @@ describe("progress screen data", () => {
     const [workouts, sets] = await Promise.all([loadWorkouts({ status: "completed", limit: 1000 }), loadSetsForExercise(chin!.id, 1500)]);
     const series = exerciseSeries({ exercise: chin!, workouts, sets, bodyweight: profile!.bodyweight, timeZone: profile!.timezone });
     expect(series.length).toBeGreaterThan(0);
-    const values = availableMetrics(chin!, series).map((m) => m.value);
-    expect(values).toContain("reps");
-    expect(seriesToLine(series, "reps").points.length).toBe(series.length);
-  });
-
-  it("weekly hard sets for the current and previous weeks", async () => {
-    const profile = (await loadProfile())!;
-    const today = localDate(NOW.toISOString(), profile.timezone);
-    const [library, training] = await Promise.all([loadExerciseLibrary(), loadTrainingWindow(28, NOW)]);
-    const [previous, current] = weekWindows(today, 2);
-
-    const last = volumeRows(weeklyHardSets({ workouts: training.workouts, sets: training.sets, exercises: library, weekStart: previous.from, timeZone: profile.timezone }));
-    const now = volumeRows(weeklyHardSets({ workouts: training.workouts, sets: training.sets, exercises: library, weekStart: current.from, timeZone: profile.timezone }));
-    expect(last.rows.length).toBeGreaterThan(5);
-    expect(now.total).toBeGreaterThan(0);
-    expect(now.total).toBeLessThan(last.total);
-    expect(last.rows[0].value).toBeGreaterThanOrEqual(last.rows[last.rows.length - 1].value);
-  });
-
-  it("consistency columns follow the sessions the fixture lifter actually did", async () => {
-    const profile = (await loadProfile())!;
-    const today = localDate(NOW.toISOString(), profile.timezone);
-    const workouts = await loadWorkouts({ limit: 400 });
-    const r = consistencyColumns({ workouts, daysPerWeek: 3, today, timeZone: profile.timezone, weeks: 8 });
-    expect(r.columns).toHaveLength(8);
-    expect(r.columns[7].inProgress).toBe(true);
-    // Five weeks of history: the first two columns predate it, the later ones never exceed the plan.
-    expect(r.columns.slice(0, 2).map((c) => c.completed)).toEqual([0, 0]);
-    expect(r.columns.slice(2, 7).every((c) => c.completed >= 1 && c.completed <= 3)).toBe(true);
-    expect(r.columns[7].completed).toBe(2);
-    expect(r.finishedCompleted).toBe(r.columns.slice(0, 7).reduce((n, c) => n + c.completed, 0));
-    expect(r.finishedPlanned).toBe(3 * r.finishedWeeks);
-  });
-
-  it("bodyweight trend and decisions read from real rows", async () => {
-    const profile = (await loadProfile())!;
-    const measurements = await loadBodyMeasurements();
-    const trend = bodyweightTrend({ measurements });
-    expect(trend.points.length).toBeGreaterThan(1);
-
-    const [decisions, library] = await Promise.all([loadProgressionDecisions(40), loadExerciseLibrary()]);
-    const digest = decisionDigest({ decisions, exercises: library, timeZone: profile.timezone, limit: 40 });
-    expect(digest.items.length).toBeGreaterThan(5);
-    const ctx = buildCoachContext("lb", library, [], { planned: [], days: [], programs: [] }).diff;
-    const rows = digest.items.map((item) => decisionChangeRows(item, ctx));
-    expect(rows.some((r) => r.length > 0)).toBe(true);
-    for (const row of rows.flat()) expect(`${row.label} ${row.before} ${row.after}`).not.toMatch(/undefined|NaN|\u2014/);
+    expect(headlineMeasure(chin!, series)).toBe("reps");
+    expect(seriesToLine(series, "reps")).toHaveLength(series.length);
   });
 });
 
@@ -175,6 +121,7 @@ describe("coach screen data", () => {
 
     expect(blocks).toHaveLength(2);
     expect(blocks.map((b) => b.title)).toEqual(["Dumbbell lateral raise", "Face pull"]);
+    expect(blocks.map(changeLines)).toEqual([["3 → 4 sets"], ["3 → 4 sets"]]);
     expect(blocks[0].place).toBe("Push");
     for (const b of blocks) {
       expect(b.warning).toBeNull();

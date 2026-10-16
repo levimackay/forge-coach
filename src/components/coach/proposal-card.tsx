@@ -2,9 +2,9 @@
 
 import { useId, useState } from "react";
 import type { CoachProposal } from "@/lib/domain/types";
-import { Button, Field, named } from "@/components/ui";
-import type { DiffBlock } from "./diff";
-import { DiffView } from "./diff-view";
+import { Button, Sheet, named } from "@/components/ui";
+import { changeLines, type DiffBlock } from "./diff";
+import { plainReason } from "@/components/train/format";
 import { timeAgo } from "./format";
 import { Notice } from "./notice";
 
@@ -18,91 +18,130 @@ export interface ProposalCardProps {
   programActive: boolean;
   online: boolean;
   nowIso: string;
-  /** Which action is running for this proposal, if any. Every card's buttons wait while one runs. */
+  /** Which action is running for this proposal, if any. */
   busy: ProposalAction | null;
   anyBusy: boolean;
-  onDecide: (action: ProposalAction, note: string) => void;
+  onDecide: (action: ProposalAction) => void;
 }
 
 export function sourceLabel(source: CoachProposal["source"]): string {
   return source === "claude" ? "Claude" : "You";
 }
 
+interface Caution {
+  title: string;
+  detail?: string;
+}
+
+/** Things worth knowing before approving. They live behind Why?, and the screen only points at them. */
+export function cautions(
+  proposal: Pick<CoachProposal, "base_program_version">,
+  blocks: readonly DiffBlock[],
+  programVersion: number | null,
+  programActive: boolean,
+): Caution[] {
+  const out: Caution[] = [];
+  if (programVersion === null) {
+    out.push({
+      title: "This program is not on this device",
+      detail: "The suggestion was written for a program that has not synced here. Connect and sync before you decide.",
+    });
+  } else if (!programActive) {
+    out.push({
+      title: "This program is no longer active",
+      detail: "The suggestion was written for a program you have since replaced. Approving changes that older program only.",
+    });
+  } else if (programVersion !== proposal.base_program_version) {
+    out.push({
+      title: "Your program changed since this was suggested",
+      detail: `It was written against version ${proposal.base_program_version} and your program is now at version ${programVersion}. Check that each change still makes sense.`,
+    });
+  }
+  for (const block of blocks) if (block.warning) out.push({ title: block.title, detail: block.warning });
+  return out;
+}
+
+/** Screen readers hear "3 changes to 4 sets" where the eye sees an arrow. */
+function Line({ text }: { text: string }) {
+  return (
+    <span className="block">
+      <span aria-hidden="true">{text}</span>
+      <span className="sr-only">{text.replace(" → ", " changes to ")}</span>
+    </span>
+  );
+}
+
 export function ProposalCard({ proposal, blocks, programVersion, programActive, online, nowIso, busy, anyBusy, onDecide }: ProposalCardProps) {
   const titleId = useId();
   const offlineId = useId();
-  const [note, setNote] = useState("");
+  const [why, setWhy] = useState(false);
   const disabled = !online || anyBusy;
-
-  const stale = programVersion !== null && programVersion !== proposal.base_program_version;
+  const warnings = cautions(proposal, blocks, programVersion, programActive);
 
   return (
-    <article aria-labelledby={titleId} className="flex flex-col gap-4 py-4">
-      <header className="flex flex-col gap-1">
-        <h3 id={titleId} className="text-name">
-          {named(proposal.title)}
-        </h3>
-        <p className="text-small">{`From ${sourceLabel(proposal.source)}, ${timeAgo(proposal.created_at, nowIso)}`}</p>
-      </header>
+    <article aria-labelledby={titleId} className="flex flex-col pb-20">
+      <h2 id={titleId} className="text-[36px] leading-10 tracking-[-0.3px]">
+        {named(proposal.title)}
+      </h2>
 
-      {programVersion === null ? (
-        <Notice title="This program is not on this device">
-          The proposal was written for a program that has not synced here. Connect and sync before you decide.
-        </Notice>
-      ) : !programActive ? (
-        <Notice title="This program is no longer active">
-          The proposal was written for a program you have since replaced. Approving changes that older program only.
-        </Notice>
-      ) : stale ? (
-        <Notice title="Your program changed since this was proposed">
-          {`It was written against version ${proposal.base_program_version} and your program is now at version ${programVersion}. Check that each change below still makes sense.`}
-        </Notice>
-      ) : null}
+      <ul aria-label={`Changes in ${proposal.title}`} className="mt-8 border-y border-rule">
+        {blocks.map((block) => (
+          <li key={block.key} className="flex min-h-14 items-baseline justify-between gap-4 border-t border-rule py-3.5 first:border-t-0">
+            <h3 className="min-w-0 break-words text-name">{named(block.title)}</h3>
+            <p className="shrink-0 text-right text-control font-light">
+              {changeLines(block).map((line) => (
+                <Line key={line} text={line} />
+              ))}
+            </p>
+          </li>
+        ))}
+      </ul>
 
-      <p className="whitespace-pre-wrap text-why">{proposal.rationale}</p>
-
-      <DiffView blocks={blocks} label={`Changes in ${proposal.title}`} />
-
-      <Field
-        label="Note (optional)"
-        hint="Saved with your decision."
-        multiline
-        rows={2}
-        maxLength={500}
-        value={note}
-        onChange={(e) => setNote(e.target.value)}
-      />
-
-      <div className="mt-2 flex flex-col gap-1">
-        <Button
-          variant="primary"
-          className="bleed"
-          loading={busy === "approve"}
-          disabled={disabled}
-          aria-describedby={!online ? offlineId : undefined}
-          onClick={() => onDecide("approve", note.trim())}
-        >
-          Approve
+      <div className="mt-3 flex items-center justify-between">
+        <Button variant="ghost" className="-ml-2" onClick={() => setWhy(true)}>
+          Why?
         </Button>
         <Button
-          variant="secondary"
-          size="lg"
-          fullWidth
+          variant="ghost"
+          className="-mr-2"
           loading={busy === "reject"}
           disabled={disabled}
           aria-describedby={!online ? offlineId : undefined}
-          onClick={() => onDecide("reject", note.trim())}
+          onClick={() => onDecide("reject")}
         >
-          Reject
+          Not now
         </Button>
-        {!online ? (
-          <p id={offlineId} className="text-why">
-            You are offline. Approving or rejecting changes your program on the server, so it needs a connection.
-          </p>
-        ) : (
-          <p className="text-why">Approving applies these changes to your program right away. You can undo them afterwards.</p>
-        )}
       </div>
+
+      {warnings.length > 0 ? <p className="mt-4 font-medium">Check Why? before you approve.</p> : null}
+      {!online ? (
+        <p id={offlineId} className="mt-4 text-small">
+          You are offline. Connect to decide.
+        </p>
+      ) : null}
+
+      <Button
+        variant="primary"
+        pinned="tabs"
+        loading={busy === "approve"}
+        disabled={disabled}
+        aria-describedby={!online ? offlineId : undefined}
+        onClick={() => onDecide("approve")}
+      >
+        Approve
+      </Button>
+
+      <Sheet open={why} onClose={() => setWhy(false)} title="Why this change">
+        <div className="flex flex-col gap-4">
+          <p className="text-small">{`From ${sourceLabel(proposal.source)}, ${timeAgo(proposal.created_at, nowIso)}`}</p>
+          {warnings.map((w) => (
+            <Notice key={w.title} title={w.title}>
+              {w.detail}
+            </Notice>
+          ))}
+          <p className="whitespace-pre-wrap text-why">{plainReason(proposal.rationale)}</p>
+        </div>
+      </Sheet>
     </article>
   );
 }

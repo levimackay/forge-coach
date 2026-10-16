@@ -2,7 +2,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Exercise } from "@/lib/domain/types";
 import { getDb } from "@/lib/local/db";
 import { freshLocalState, TEST_USER } from "@/lib/local/test-support";
-import { GYM_EQUIPMENT, buildEquipmentInputs, emptyDraft, mainPlace, previewProgram, saveOnboarding, validateStep, type OnboardingDraft } from "./onboarding-model";
+import { GYM_EQUIPMENT, buildEquipmentInputs, emptyDraft, mainPlace, previewProgram, saveOnboarding, stepsFor, validateStep, type OnboardingDraft } from "./onboarding-model";
 import { seededLibrary } from "./test-library";
 
 vi.mock("@/lib/supabase/client", async () => {
@@ -22,27 +22,59 @@ const draft = (over: Partial<OnboardingDraft> = {}): OnboardingDraft => ({
   ...over,
 });
 
+describe("stepsFor", () => {
+  const always = ["name", "unit", "bodyweight", "places"];
+  const tail = ["goal", "note", "focus", "days", "program"];
+
+  it("asks one question per step and ends on the program", () => {
+    const steps = stepsFor(draft({ atHome: false, atGym: true }));
+    expect(steps).toEqual([...always, ...tail]);
+    expect(new Set(steps).size).toBe(steps.length);
+  });
+
+  it("asks about equipment only for a home, and about dumbbells only when there are some", () => {
+    expect(stepsFor(draft())).toEqual([...always, "equipment", ...tail]);
+    expect(stepsFor(draft({ homeEquipment: ["dumbbells"] }))).toEqual([...always, "equipment", "jump", "heaviest", ...tail]);
+    expect(stepsFor(draft({ atHome: false, atGym: true, homeEquipment: ["dumbbells"] }))).toEqual([...always, ...tail]);
+  });
+
+  it("asks where the program is built only when both places are on", () => {
+    expect(stepsFor(draft({ atGym: true }))).toEqual([...always, "equipment", "main", ...tail]);
+    expect(stepsFor(draft())).not.toContain("main");
+  });
+});
+
 describe("validateStep", () => {
-  it("asks for a name and a plausible bodyweight", () => {
-    expect(validateStep(0, draft())).toEqual({});
-    expect(validateStep(0, draft({ name: "  " })).name).toBeTruthy();
-    expect(validateStep(0, draft({ bodyweight: null })).bodyweight).toBeTruthy();
-    expect(validateStep(0, draft({ bodyweight: 12 })).bodyweight).toMatch(/50 and 700 lb/);
-    expect(validateStep(0, draft({ unit: "kg", bodyweight: 80 }))).toEqual({});
-    expect(validateStep(0, draft({ unit: "kg", bodyweight: 800 })).bodyweight).toMatch(/kg/);
+  it("asks for a name", () => {
+    expect(validateStep("name", draft())).toEqual({});
+    expect(validateStep("name", draft({ name: "  " })).name).toBeTruthy();
   });
 
-  it("needs a place to train and sane dumbbell numbers", () => {
-    expect(validateStep(1, draft({ atHome: false, atGym: false })).places).toBeTruthy();
-    expect(validateStep(1, draft({ atHome: false, atGym: true }))).toEqual({});
+  it("asks for a plausible bodyweight in the chosen unit", () => {
+    expect(validateStep("bodyweight", draft())).toEqual({});
+    expect(validateStep("bodyweight", draft({ bodyweight: null })).bodyweight).toBeTruthy();
+    expect(validateStep("bodyweight", draft({ bodyweight: 12 })).bodyweight).toMatch(/50 and 700 lb/);
+    expect(validateStep("bodyweight", draft({ unit: "kg", bodyweight: 80 }))).toEqual({});
+    expect(validateStep("bodyweight", draft({ unit: "kg", bodyweight: 800 })).bodyweight).toMatch(/kg/);
+  });
+
+  it("needs a place to train", () => {
+    expect(validateStep("places", draft({ atHome: false, atGym: false })).places).toBeTruthy();
+    expect(validateStep("places", draft({ atHome: false, atGym: true }))).toEqual({});
+  });
+
+  it("needs sane dumbbell numbers", () => {
     const withDumbbells = draft({ homeEquipment: ["dumbbells"] });
-    expect(validateStep(1, withDumbbells)).toEqual({});
-    expect(validateStep(1, { ...withDumbbells, dumbbellIncrement: 0 }).dumbbell_increment).toBeTruthy();
-    expect(validateStep(1, { ...withDumbbells, dumbbellIncrement: 10, dumbbellMax: 5 }).dumbbell_max).toBeTruthy();
+    expect(validateStep("jump", withDumbbells)).toEqual({});
+    expect(validateStep("heaviest", withDumbbells)).toEqual({});
+    expect(validateStep("jump", { ...withDumbbells, dumbbellIncrement: 0 }).dumbbell_increment).toBeTruthy();
+    expect(validateStep("heaviest", { ...withDumbbells, dumbbellIncrement: 10, dumbbellMax: 5 }).dumbbell_max).toBeTruthy();
   });
 
-  it("ignores dumbbell numbers when there are no dumbbells", () => {
-    expect(validateStep(1, draft({ dumbbellIncrement: 0 }))).toEqual({});
+  it("has nothing to say about a step that is only a choice", () => {
+    expect(validateStep("goal", draft())).toEqual({});
+    expect(validateStep("days", draft())).toEqual({});
+    expect(validateStep("program", draft())).toEqual({});
   });
 });
 

@@ -4,120 +4,18 @@ import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { ListGroup, ListRow } from "@/components/ui/list-row";
+import { named } from "@/components/ui/name";
 import { NumberStepper } from "@/components/ui/number-stepper";
 import { Sheet } from "@/components/ui/sheet";
 import type { Exercise, Unit, WorkoutSet } from "@/lib/domain/types";
 import { isUsable, loadIncrement, type EquipmentLike } from "@/lib/engine";
-import { named } from "@/components/ui/name";
-import { Chip, SheetBand } from "./bits";
+import { EffortWords, SheetBand, SwitchRow } from "./bits";
+import { EFFORT_RIR, effortForRir } from "./effort";
 import type { SetEdit } from "./session-actions";
 import { loadLabel, usesLoad } from "./workout-model";
 
 export const MAX_REPS_INPUT = 300;
 export const MAX_LOAD_INPUT = 2000;
-
-/**
- * Weight, reps and RIR as rows of one table, closed by a hairline. `large` is the live logger:
- * a taller weight row and no explanation under RIR.
- */
-export function SetFields({
-  draft,
-  exercise,
-  unit,
-  step,
-  onChange,
-  large = false,
-  closed = true,
-}: {
-  draft: SetEdit;
-  exercise: Exercise;
-  unit: Unit;
-  step: number;
-  onChange: (next: SetEdit) => void;
-  large?: boolean;
-  /** Draws the hairline under the last row. Leave it off when the next element draws its own top rule. */
-  closed?: boolean;
-}) {
-  return (
-    <div>
-      {usesLoad(exercise) ? (
-        <NumberStepper
-          label={loadLabel(exercise)}
-          unit={unit}
-          value={draft.load}
-          step={step}
-          min={0}
-          max={MAX_LOAD_INPUT}
-          large={large}
-          hint={
-            draft.load === null && exercise.load_type === "external"
-              ? "Enter the weight you used to log this set."
-              : exercise.equipment.includes("dumbbells")
-                ? "The weight of one dumbbell."
-                : undefined
-          }
-          onChange={(load) => onChange({ ...draft, load })}
-        />
-      ) : null}
-      <NumberStepper
-        label="Reps"
-        value={draft.reps}
-        min={1}
-        max={MAX_REPS_INPUT}
-        onChange={(reps) => onChange({ ...draft, reps })}
-      />
-      {draft.warmup ? null : draft.rir === null ? (
-        <div className="grid grid-cols-[var(--label-col)_minmax(0,1fr)] gap-x-2 border-t border-rule py-4">
-          <span>RIR</span>
-          <p>RIR is not recorded for this set. Without it FORGE waits one extra session before adding weight.</p>
-        </div>
-      ) : (
-        <NumberStepper
-          label="RIR"
-          value={draft.rir}
-          min={0}
-          max={10}
-          hint={large ? undefined : "Reps in reserve: the reps you could still have done."}
-          onChange={(rir) => onChange({ ...draft, rir })}
-        />
-      )}
-      {closed ? <div className="border-t border-rule" /> : null}
-    </div>
-  );
-}
-
-/** Warmup, pain and no-RIR toggles. `defaultRir` is what turning RIR back on starts from. */
-export function SetFlags({
-  draft,
-  defaultRir,
-  onChange,
-}: {
-  draft: SetEdit;
-  defaultRir: number;
-  onChange: (next: SetEdit) => void;
-}) {
-  return (
-    <div>
-      <div className="grid grid-cols-[var(--label-col)_minmax(0,1fr)] min-h-14 items-center border-b border-rule">
-        <span>This set</span>
-        <div role="group" aria-label="This set" className="-ml-2.5 flex flex-wrap">
-          <Chip selected={draft.warmup} onClick={() => onChange({ ...draft, warmup: !draft.warmup })}>
-            Warmup
-          </Chip>
-          <Chip selected={draft.pain} onClick={() => onChange({ ...draft, pain: !draft.pain })}>
-            Pain
-          </Chip>
-          {draft.warmup ? null : (
-            <Chip selected={draft.rir === null} onClick={() => onChange({ ...draft, rir: draft.rir === null ? defaultRir : null })}>
-              No RIR
-            </Chip>
-          )}
-        </div>
-      </div>
-      {draft.pain ? <p className="pt-3">This exercise will stay at its current weight next time.</p> : null}
-    </div>
-  );
-}
 
 /** Edit or delete a logged set. Mount it with a `key` per set so the fields start from that set. */
 export function SetEditSheet({
@@ -125,6 +23,7 @@ export function SetEditSheet({
   exercise,
   unit,
   equipment,
+  targetRir,
   setNumber,
   onClose,
   onSave,
@@ -134,13 +33,15 @@ export function SetEditSheet({
   exercise: Exercise | undefined;
   unit: Unit;
   equipment: EquipmentLike | null;
+  /** The plan's target for this exercise, which the effort words are measured from. */
+  targetRir: number;
   setNumber: number;
   onClose: () => void;
   onSave: (set: WorkoutSet, edit: SetEdit) => Promise<void>;
   onDelete: (set: WorkoutSet) => Promise<void>;
 }) {
   return (
-    <Sheet open={set !== null} onClose={onClose} title={set?.is_warmup ? "Edit warmup" : `Edit set ${setNumber}`}>
+    <Sheet open={set !== null} onClose={onClose} title={set?.is_warmup ? "Warmup" : `Set ${setNumber}`}>
       {set && exercise ? (
         <EditForm
           key={set.id}
@@ -148,6 +49,7 @@ export function SetEditSheet({
           exercise={exercise}
           unit={unit}
           equipment={equipment}
+          targetRir={targetRir}
           onSave={onSave}
           onDelete={onDelete}
         />
@@ -161,6 +63,7 @@ function EditForm({
   exercise,
   unit,
   equipment,
+  targetRir,
   onSave,
   onDelete,
 }: {
@@ -168,6 +71,7 @@ function EditForm({
   exercise: Exercise;
   unit: Unit;
   equipment: EquipmentLike | null;
+  targetRir: number;
   onSave: (set: WorkoutSet, edit: SetEdit) => Promise<void>;
   onDelete: (set: WorkoutSet) => Promise<void>;
 }) {
@@ -200,8 +104,41 @@ function EditForm({
   return (
     <div className="flex flex-col gap-5">
       <p className="text-name">{named(exercise.name)}</p>
-      <SetFields draft={draft} exercise={exercise} unit={unit} step={step} onChange={setDraft} />
-      <SetFlags draft={draft} defaultRir={2} onChange={setDraft} />
+      <div>
+        {usesLoad(exercise) ? (
+          <NumberStepper
+            label={loadLabel(exercise)}
+            unit={unit}
+            value={draft.load}
+            step={step}
+            min={0}
+            max={MAX_LOAD_INPUT}
+            onChange={(load) => setDraft({ ...draft, load })}
+          />
+        ) : null}
+        <NumberStepper
+          label="Reps"
+          value={draft.reps}
+          min={1}
+          max={MAX_REPS_INPUT}
+          onChange={(reps) => setDraft({ ...draft, reps })}
+        />
+        <div className="border-t border-rule" />
+      </div>
+      {draft.warmup ? null : (
+        <div>
+          <p className="pb-2 font-light">How did it feel?</p>
+          <EffortWords
+            label="How did it feel"
+            value={draft.rir === null ? null : effortForRir(draft.rir, targetRir)}
+            onChange={(effort) => setDraft({ ...draft, rir: EFFORT_RIR[effort](targetRir) })}
+          />
+        </div>
+      )}
+      <div className="border-t border-rule">
+        <SwitchRow label="Warmup" checked={draft.warmup} onChange={(warmup) => setDraft({ ...draft, warmup })} />
+        <SwitchRow label="Something hurt" checked={draft.pain} onChange={(pain) => setDraft({ ...draft, pain })} />
+      </div>
       <Field
         label="Note"
         multiline
@@ -226,7 +163,7 @@ function EditForm({
           loading={busy === "save"}
           onClick={() => void run("save", () => onSave(set, draft))}
         >
-          Save changes
+          Save
         </Button>
       </SheetBand>
     </div>
@@ -269,14 +206,12 @@ export function SwapSheet({
   current,
   library,
   equipment,
-  equipmentName,
   onClose,
   onPick,
 }: {
   current: Exercise | null;
   library: Exercise[];
   equipment: EquipmentLike | null;
-  equipmentName: string | null;
   onClose: () => void;
   onPick: (exercise: Exercise) => void;
 }) {
@@ -289,15 +224,11 @@ export function SwapSheet({
   return (
     <Sheet open={current !== null} onClose={onClose} title="Swap exercise">
       <div className="flex flex-col gap-4 pb-2">
-        <p>
-          Instead of {current?.name}
-          {equipmentName ? `, showing what fits ${equipmentName}` : ""}. Sets you already logged stay as they are.
-        </p>
-        {empty ? <p>Nothing else in the library fits this movement and your equipment.</p> : null}
+        {empty ? <p>Nothing else fits.</p> : null}
         {options.ladder.length > 0 ? (
           <div>
-            <h3 className="pt-2 text-name">{named("Same progression")}</h3>
-            <ListGroup label="Variations on the same progression" className="border-t border-rule mt-2">
+            <h3 className="pt-2 text-name">{named("Other versions")}</h3>
+            <ListGroup label="Other versions of this exercise" className="border-t border-rule mt-2">
               {options.ladder.map(({ exercise, hint }) => (
                 <ListRow key={exercise.id} title={named(exercise.name)} name trailing={hint} onClick={() => onPick(exercise)} />
               ))}
@@ -306,8 +237,8 @@ export function SwapSheet({
         ) : null}
         {options.others.length > 0 ? (
           <div>
-            <h3 className="pt-2 text-name">{named("Other options")}</h3>
-            <ListGroup label="Other exercises for the same movement" className="border-t border-rule mt-2">
+            <h3 className="pt-2 text-name">{named("Similar")}</h3>
+            <ListGroup label="Similar exercises" className="border-t border-rule mt-2">
               {options.others.map(({ exercise }) => (
                 <ListRow key={exercise.id} title={named(exercise.name)} name onClick={() => onPick(exercise)} />
               ))}

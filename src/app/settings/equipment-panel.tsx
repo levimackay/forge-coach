@@ -2,8 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import type { EquipmentCode, EquipmentProfile, Unit } from "@/lib/domain/types";
-import { Section } from "@/components/coach/section";
-import { Button, EmptyState, Field, IconPlus, ListGroup, ListRow, Sheet, Skeleton, useToast } from "@/components/ui";
+import { Button, Field, IconPlus, ListGroup, ListRow, Sheet, Skeleton, useToast } from "@/components/ui";
 import { putRow, putRows, softDelete, useEquipmentProfiles, useProfile } from "@/lib/local";
 import { getDb } from "@/lib/local/db";
 import {
@@ -20,16 +19,15 @@ function summary(p: EquipmentProfile): string {
   return kit.length > 0 ? kit.join(", ") : "Bodyweight only";
 }
 
-export function EquipmentSection() {
+export function EquipmentPanel() {
   const profiles = useEquipmentProfiles();
   const profile = useProfile();
   // `new` opens a blank form; a profile opens that profile.
   const [editing, setEditing] = useState<EquipmentProfile | "new" | null>(null);
 
   return (
-    <Section title="Equipment" description="What you can train with. Days can use a profile so a hotel gym swaps in the right exercises.">
+    <>
       {profiles === undefined ? <Skeleton rows={2} /> : null}
-      {profiles?.length === 0 ? <EmptyState title="No equipment profiles">Add one so your program only uses kit you have.</EmptyState> : null}
       <ListGroup label="Equipment profiles" className="border-t border-rule">
         {profiles?.map((p) => (
           <ListRow
@@ -54,7 +52,7 @@ export function EquipmentSection() {
           />
         ) : null}
       </Sheet>
-    </Section>
+    </>
   );
 }
 

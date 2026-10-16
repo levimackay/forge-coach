@@ -99,27 +99,49 @@ export function mainPlace(d: OnboardingDraft): Place {
 
 export type StepErrors = Partial<Record<"name" | "bodyweight" | "places" | "dumbbell_increment" | "dumbbell_max", string>>;
 
-export const STEP_COUNT = 4;
+/** One question each, except the last, which shows the program that the answers build. */
+export type StepId =
+  | "name"
+  | "unit"
+  | "bodyweight"
+  | "places"
+  | "equipment"
+  | "jump"
+  | "heaviest"
+  | "main"
+  | "goal"
+  | "note"
+  | "focus"
+  | "days"
+  | "program";
+
+/** The steps this lifter goes through. Equipment questions only come up for the places they train. */
+export function stepsFor(d: OnboardingDraft): StepId[] {
+  const steps: StepId[] = ["name", "unit", "bodyweight", "places"];
+  if (d.atHome) steps.push("equipment");
+  if (d.atHome && d.homeEquipment.includes("dumbbells")) steps.push("jump", "heaviest");
+  if (d.atHome && d.atGym) steps.push("main");
+  steps.push("goal", "note", "focus", "days", "program");
+  return steps;
+}
 
 /** Returns what is wrong with a step, or an empty object when it can be left. */
-export function validateStep(step: number, d: OnboardingDraft): StepErrors {
+export function validateStep(step: StepId, d: OnboardingDraft): StepErrors {
   const errors: StepErrors = {};
-  if (step === 0) {
-    if (d.name.trim() === "") errors.name = "Enter the name you want to see in the app.";
+  if (step === "name" && d.name.trim() === "") errors.name = "Enter the name you want to see in the app.";
+  if (step === "bodyweight") {
     const range = unitDefaults(d.unit).bodyweight;
     if (d.bodyweight === null) errors.bodyweight = "Enter your bodyweight.";
     else if (d.bodyweight < range.min || d.bodyweight > range.max) {
       errors.bodyweight = `Enter a bodyweight between ${range.min} and ${range.max} ${d.unit}.`;
     }
   }
-  if (step === 1) {
-    if (!d.atHome && !d.atGym) errors.places = "Choose at least one place you train.";
-    if (d.atHome && d.homeEquipment.includes("dumbbells")) {
-      const inc = resolvedIncrement(d);
-      const max = resolvedMax(d);
-      if (!(inc > 0)) errors.dumbbell_increment = "The jump between dumbbells must be more than zero.";
-      if (!(max >= inc)) errors.dumbbell_max = "The heaviest dumbbell cannot be lighter than the jump.";
-    }
+  if (step === "places" && !d.atHome && !d.atGym) errors.places = "Choose at least one place you train.";
+  if (step === "jump" && !(resolvedIncrement(d) > 0)) {
+    errors.dumbbell_increment = "The jump between dumbbells must be more than zero.";
+  }
+  if (step === "heaviest" && !(resolvedMax(d) >= resolvedIncrement(d))) {
+    errors.dumbbell_max = "The heaviest dumbbell cannot be lighter than the jump.";
   }
   return errors;
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { EquipmentProfile, Exercise, InverseChange, PlannedExercise, ProgramDay } from "@/lib/domain/types";
-import { describeChanges, type DiffContext } from "./diff";
+import { changeLines, describeChanges, type DiffBlock, type DiffContext } from "./diff";
 
 const ID = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 const TS = "2026-10-01T00:00:00.000Z";
@@ -97,7 +97,7 @@ describe("update_prescription", () => {
     expect(block.place).toBe("Push A");
     expect(block.rows).toEqual([
       { label: "Sets", before: "3", after: "4" },
-      { label: "Reps in reserve", before: "2", after: "1" },
+      { label: "Reps left", before: "2", after: "1" },
       { label: "Load", before: "135 lb", after: "140 lb" },
       { label: "Rest", before: "1 min 30 sec", after: "2 min" },
     ]);
@@ -177,7 +177,7 @@ describe("swap, add, remove, update_day", () => {
     expect(block.rows).toEqual([
       { label: "Sets", before: null, after: "3" },
       { label: "Reps", before: null, after: "8 to 12 reps" },
-      { label: "Reps in reserve", before: null, after: "2" },
+      { label: "Reps left", before: null, after: "2" },
       { label: "Load", before: null, after: "Bodyweight" },
       { label: "Slot", before: null, after: "4" },
     ]);
@@ -256,5 +256,41 @@ describe("history modes", () => {
       null,
     );
     expect(block.rows).toEqual([]);
+  });
+});
+
+describe("changeLines", () => {
+  const block = (over: Partial<DiffBlock>): DiffBlock => ({ key: "0", verb: "Change", title: "Lateral raise", place: null, rows: [], warning: null, ...over });
+
+  it("says a changed value as before to after, in plain words", () => {
+    expect(changeLines(block({ rows: [{ label: "Sets", before: "3", after: "4" }] }))).toEqual(["3 → 4 sets"]);
+    expect(changeLines(block({ rows: [{ label: "Load", before: "135 lb", after: "140 lb" }] }))).toEqual(["135 lb → 140 lb"]);
+    expect(changeLines(block({ rows: [{ label: "Reps left", before: "2", after: "1" }] }))).toEqual(["2 → 1 reps left"]);
+  });
+
+  it("gives one line per changed value", () => {
+    const rows = [
+      { label: "Sets", before: "3", after: "4" },
+      { label: "Reps", before: "8 to 12 reps", after: "10 to 15 reps" },
+    ];
+    expect(changeLines(block({ rows }))).toEqual(["3 → 4 sets", "8 to 12 reps → 10 to 15 reps"]);
+  });
+
+  it("shows only the new value when there is nothing to compare with", () => {
+    expect(changeLines(block({ rows: [{ label: "Sets", before: null, after: "4" }] }))).toEqual(["4 sets"]);
+  });
+
+  it("names an added, removed or swapped exercise by what happened", () => {
+    const rows = [
+      { label: "Sets", before: null, after: "3" },
+      { label: "Reps", before: null, after: "8 to 12 reps" },
+      { label: "Slot", before: null, after: "2" },
+    ];
+    expect(changeLines(block({ verb: "Add", rows }))).toEqual(["Added", "3 sets", "8 to 12 reps"]);
+    expect(changeLines(block({ verb: "Remove", rows: [{ label: "In program", before: "Yes", after: "No, your history for it stays" }] }))).toEqual(["Removed"]);
+    expect(changeLines(block({ verb: "Swap", rows: [{ label: "Exercise", before: "A", after: "B" }] }))).toEqual(["Swapped"]);
+    expect(
+      changeLines(block({ verb: "Swap", rows: [{ label: "Exercise", before: "A", after: "B" }, { label: "Load", before: "50 lb", after: "Cleared" }] })),
+    ).toEqual(["Swapped", "Load cleared"]);
   });
 });

@@ -23,7 +23,7 @@ describe("consent card", () => {
     const html = card();
     expect(html).toContain("Connect Claude to FORGE");
     expect(html).toContain("Signed in as levi@example.com");
-    expect(html).toContain("Read your program, workouts, sets, recovery logs");
+    expect(html).toContain("Read your program, workouts, sets, sleep logs");
     expect(html).toContain("Suggest changes to your program");
     expect(html).toContain("Change your program until you approve a suggestion in the Coach tab");
     expect(html).toContain("Log, edit or delete your workouts");

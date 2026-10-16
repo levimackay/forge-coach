@@ -4,6 +4,7 @@ import { useEffect, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { Splash } from "./splash";
+import { SyncLine } from "./sync-chip";
 import { TabBar } from "./tab-bar";
 
 // Reachable without a session. The consent page handles its own sign-in so it can keep its query.
@@ -45,6 +46,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           showTabs ? "pb-[calc(var(--tabbar-height)+env(safe-area-inset-bottom)+16px)]" : "pb-[calc(env(safe-area-inset-bottom)+16px)]"
         }`}
       >
+        {signedIn && !isPublic ? <SyncLine /> : null}
         {content}
       </main>
       {showTabs ? <TabBar /> : null}

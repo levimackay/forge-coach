@@ -5,7 +5,7 @@ import { ActivityLog, describeAudit } from "./activity-log";
 import { splitGrants, toGrants } from "./connection";
 import { DiffView } from "./diff-view";
 import { HistoryList } from "./history-list";
-import { ProposalCard } from "./proposal-card";
+import { ProposalCard, cautions } from "./proposal-card";
 import type { DiffBlock, DiffContext } from "./diff";
 
 const html = (node: React.ReactElement) => renderToStaticMarkup(node);
@@ -62,41 +62,54 @@ const card = (over: Partial<Parameters<typeof ProposalCard>[0]> = {}) =>
   );
 
 describe("ProposalCard", () => {
-  it("shows title, source, age, rationale, the diff and both actions", () => {
+  it("shows the title, one row per change, Why?, Not now and Approve", () => {
     const out = card();
-    expect(out).toContain("Add a set of lateral raises");
-    expect(out).toContain("From Claude, 2 hours ago");
-    expect(out).toContain("Side delts get three sets a week.");
-    expect(out).toContain("Lateral raise");
-    expect(out).toContain(">Approve<");
-    expect(out).toContain(">Reject<");
-    expect(out).toContain("Note (optional)");
-    expect(out).not.toContain("changed since this was proposed");
+    expect(out).toContain("Add a set of lateral raises.");
+    expect(out).toContain("Lateral raise.");
+    expect(out).toContain("3 → 4 sets");
+    expect(out).toContain(">Why?<");
+    expect(out).toContain(">Not now<");
+    expect(out).toContain("<span>Approve</span>");
     expect(out).not.toContain('disabled=""');
   });
 
-  it("names the proposal with a period, approves with an ink band and rejects with plain text", () => {
+  it("keeps the reason, the source and the note field off the screen until Why? is opened", () => {
     const out = card();
-    expect(out).toContain("Add a set of lateral raises.");
-    expect(out).toMatch(/<button[^>]*class="[^"]*bg-ink[^"]*"[^>]*><span>Approve<\/span>/);
-    expect(out).toMatch(/<button[^>]*class="[^"]*underline[^"]*"[^>]*>Reject<\/button>/);
+    expect(out).not.toContain("Side delts get three sets a week.");
+    expect(out).not.toContain("From Claude");
+    expect(out).not.toContain("Note");
+  });
+
+  it("approves with a pinned ink band and declines with plain text, no radius or shadow or red", () => {
+    const out = card();
+    expect(out).toMatch(/<button[^>]*class="[^"]*bg-ink[^"]*fixed[^"]*"[^>]*><span>Approve<\/span>/);
+    expect(out).toMatch(/<button[^>]*class="[^"]*underline[^"]*"[^>]*>Not now<\/button>/);
     expect(out).not.toMatch(/rounded|shadow|bg-red/);
   });
 
-  it("labels a proposal the user made as coming from them", () => {
-    expect(card({ proposal: proposal({ source: "user", client_id: null }) })).toContain("From You, ");
+  it("lists every line of a change that does more than one thing", () => {
+    const two: DiffBlock[] = [
+      {
+        ...blocks[0],
+        rows: [
+          { label: "Sets", before: "3", after: "4" },
+          { label: "Load", before: "20 lb", after: "25 lb" },
+        ],
+      },
+    ];
+    const out = card({ blocks: two });
+    expect(out).toContain("3 → 4 sets");
+    expect(out).toContain("20 lb → 25 lb");
   });
 
-  it("warns when the program version moved on, naming both versions", () => {
-    const out = card({ programVersion: 5 });
-    expect(out).toContain("Your program changed since this was proposed");
-    expect(out).toContain("version 2");
-    expect(out).toContain("version 5");
+  it("reads each arrow as 'changes to' for screen readers", () => {
+    expect(card()).toContain("3 changes to 4 sets");
   });
 
-  it("warns when the program is missing or no longer active", () => {
-    expect(card({ programVersion: null })).toContain("This program is not on this device");
-    expect(card({ programActive: false })).toContain("This program is no longer active");
+  it("points at Why? only when there is something to check", () => {
+    expect(card()).not.toContain("Check Why?");
+    expect(card({ programVersion: 5 })).toContain("Check Why? before you approve.");
+    expect(card({ blocks: [{ ...blocks[0], warning: "Already set to these values." }] })).toContain("Check Why? before you approve.");
   });
 
   it("disables both actions offline and says why", () => {
@@ -106,9 +119,30 @@ describe("ProposalCard", () => {
     expect(out).toMatch(/aria-describedby="[^"]+"/);
   });
 
-  it("keeps every card's buttons off while one action runs", () => {
-    const out = card({ anyBusy: true });
-    expect(out.match(/disabled=""/g)).toHaveLength(2);
+  it("keeps the actions off while one runs", () => {
+    expect(card({ anyBusy: true }).match(/disabled=""/g)).toHaveLength(2);
+  });
+});
+
+describe("cautions", () => {
+  const base = { base_program_version: 2 };
+
+  it("is empty when the program is the one the suggestion was written for", () => {
+    expect(cautions(base, blocks, 2, true)).toEqual([]);
+  });
+
+  it("names the program problem: missing, replaced or moved on, with both versions", () => {
+    expect(cautions(base, blocks, null, true)[0].title).toBe("This program is not on this device");
+    expect(cautions(base, blocks, 2, false)[0].title).toBe("This program is no longer active");
+    const moved = cautions(base, blocks, 5, true)[0];
+    expect(moved.title).toBe("Your program changed since this was suggested");
+    expect(moved.detail).toContain("version 2");
+    expect(moved.detail).toContain("version 5");
+  });
+
+  it("adds a block's own warning under that exercise's name", () => {
+    const warned = [{ ...blocks[0], warning: "Already set to these values." }];
+    expect(cautions(base, warned, 2, true)).toEqual([{ title: "Lateral raise", detail: "Already set to these values." }]);
   });
 });
 

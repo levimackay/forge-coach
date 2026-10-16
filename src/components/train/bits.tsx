@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { named } from "@/components/ui/name";
+import { EFFORTS, EFFORT_LABEL, type Effort } from "./effort";
 
 /** A screen's page name, with its period. Anything under it is body text in ink. */
 export function ScreenTitle({ title, children }: { title: string; children?: ReactNode }) {
@@ -175,4 +176,41 @@ export function SheetBand({ error, children }: { error?: string | null; children
  */
 export function BottomBand({ children }: { children: ReactNode }) {
   return <div className="fixed inset-x-0 bottom-0 z-30 bg-ground pb-safe [&>button]:w-full">{children}</div>;
+}
+
+/**
+ * Easy, Good and Hard as three full-width cells between hairlines. The chosen word is ink and
+ * underlined, the others grey, so the state reads without colour.
+ */
+export function EffortWords({
+  value,
+  onChange,
+  label,
+}: {
+  value: Effort | null;
+  onChange: (next: Effort) => void;
+  label: string;
+}) {
+  return (
+    <div role="group" aria-label={label} className="bleed grid h-14 grid-cols-3 border-y border-rule">
+      {EFFORTS.map((effort, i) => {
+        const chosen = value === effort;
+        return (
+          <button
+            key={effort}
+            type="button"
+            aria-pressed={chosen}
+            onClick={() => onChange(effort)}
+            className={`flex items-center justify-center text-control active:bg-ink active:text-ground ${
+              i > 0 ? "border-l border-rule" : ""
+            } ${chosen ? "text-ink" : "text-grey"}`}
+          >
+            <span className={chosen ? "underline decoration-2 underline-offset-[7px]" : undefined}>
+              {EFFORT_LABEL[effort]}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
 }

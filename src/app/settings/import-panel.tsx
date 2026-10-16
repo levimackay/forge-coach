@@ -2,11 +2,9 @@
 
 import { useRef, useState, type ChangeEvent } from "react";
 import type { ForgeExport } from "@/lib/domain/types";
-import { saveTextFile } from "@/components/coach/browser-actions";
-import { Section } from "@/components/coach/section";
 import { Button, useToast } from "@/components/ui";
 import { useAuth } from "@/lib/auth";
-import { exportAll, importExport, useSyncStatus } from "@/lib/local";
+import { importExport } from "@/lib/local";
 import { MAX_IMPORT_BYTES, previewImport, type ImportPreview } from "./import-preview";
 
 type ImportState =
@@ -18,27 +16,11 @@ type ImportState =
 
 const count = (n: number) => n.toLocaleString("en-US");
 
-export function DataSection() {
+export function ImportPanel({ onDone }: { onDone: () => void }) {
   const { user } = useAuth();
-  const sync = useSyncStatus();
   const { toast } = useToast();
   const fileInput = useRef<HTMLInputElement>(null);
-  const [exporting, setExporting] = useState(false);
   const [state, setState] = useState<ImportState>({ phase: "idle" });
-
-  const runExport = async () => {
-    setExporting(true);
-    try {
-      const data = await exportAll();
-      const rows = Object.values(data.tables).reduce((n, list) => n + (list?.length ?? 0), 0);
-      await saveTextFile(`forge-export-${data.exported_at.slice(0, 10)}.json`, `${JSON.stringify(data, null, 2)}\n`, "application/json");
-      toast(`Exported ${count(rows)} rows.`);
-    } catch (err) {
-      toast(`Could not export: ${err instanceof Error ? err.message : "unknown error"}`, { tone: "error" });
-    } finally {
-      setExporting(false);
-    }
-  };
 
   const pickFile = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -54,7 +36,7 @@ export function DataSection() {
     try {
       json = JSON.parse(await file.text());
     } catch {
-      setState({ phase: "error", message: "That file is not JSON. Choose a file saved with Export all data." });
+      setState({ phase: "error", message: "That file is not JSON. Choose a file saved with Export." });
       return;
     }
     const result = previewImport(json, user?.id ?? null);
@@ -71,66 +53,38 @@ export function DataSection() {
       const { imported } = await importExport(data);
       const rows = Object.values(imported).reduce((n, c) => n + (c ?? 0), 0);
       toast(`Imported ${count(rows)} rows. They sync in the background.`);
-      setState({ phase: "idle" });
+      onDone();
     } catch (err) {
       setState({ phase: "error", message: err instanceof Error ? err.message : "The import failed." });
     }
   };
 
   return (
-    <Section title="Your data" description="Everything lives on this device and syncs to your account. These work offline.">
-      <div className="border-y border-rule">
-        <div className="grid grid-cols-[var(--label-col)_minmax(0,1fr)] py-3">
-          <h3>Export</h3>
-          <div className="flex flex-col items-start gap-2">
-            <p className="text-why">
-              Saves one JSON file with your program, workouts, sets, recovery, body measurements and decisions.
-              {sync.pending > 0 ? ` ${sync.pending} recent changes have not synced yet; they are in the file.` : ""}
-            </p>
-            <Button variant="secondary" className="-ml-4" loading={exporting} onClick={() => void runExport()}>
-              Export all data
-            </Button>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-[var(--label-col)_minmax(0,1fr)] border-t border-rule py-3">
-          <h3>Import</h3>
-          <div className="flex flex-col items-start gap-2">
-            <p className="text-why">
-              Add the contents of a FORGE export to this account. Rows with the same id are updated, nothing is deleted.
-            </p>
-            <input
-              ref={fileInput}
-              type="file"
-              accept="application/json,.json"
-              className="sr-only"
-              tabIndex={-1}
-              aria-hidden="true"
-              onChange={(e) => void pickFile(e)}
-            />
-            <Button
-              variant="secondary"
-              className="-ml-4"
-              loading={state.phase === "reading"}
-              disabled={state.phase === "importing"}
-              onClick={() => fileInput.current?.click()}
-            >
-              Choose an export file
-            </Button>
-          </div>
-        </div>
-      </div>
-
-      {state.phase === "error" ? (
-        <p role="alert" className="border-l-2 border-ink pl-3 font-medium">
-          {state.message}
-        </p>
-      ) : null}
-
+    <div className="flex flex-col gap-4">
       {state.phase === "preview" || state.phase === "importing" ? (
         <ImportSummary state={state} onCancel={() => setState({ phase: "idle" })} onConfirm={confirmImport} />
-      ) : null}
-    </Section>
+      ) : (
+        <>
+          <input
+            ref={fileInput}
+            type="file"
+            accept="application/json,.json"
+            className="sr-only"
+            tabIndex={-1}
+            aria-hidden="true"
+            onChange={(e) => void pickFile(e)}
+          />
+          {state.phase === "error" ? (
+            <p role="alert" className="border-l-2 border-ink pl-3 font-medium">
+              {state.message}
+            </p>
+          ) : null}
+          <Button variant="primary" className="bleed" loading={state.phase === "reading"} onClick={() => fileInput.current?.click()}>
+            Choose an export file
+          </Button>
+        </>
+      )}
+    </div>
   );
 }
 

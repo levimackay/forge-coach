@@ -1,67 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { exerciseSeries, weeklyHardSets, type DecisionItem } from "@/lib/analytics";
+import { exerciseSeries } from "@/lib/analytics";
 import { exercise, set, workout } from "@/lib/analytics/testkit";
-import type { DiffContext } from "@/components/coach/diff";
-import {
-  availableMetrics,
-  bestSetText,
-  consistencyColumns,
-  decisionChangeRows,
-  exerciseOptions,
-  figureGroups,
-  metricDigits,
-  seriesToLine,
-  sessionFacts,
-  trendFigure,
-  trendSummary,
-  volumeRows,
-  weekWindows,
-} from "./derive";
+import { exerciseOptions, headlineMeasure, seriesToLine, shown, sinceText } from "./derive";
 
 const TZ = "UTC";
-
-describe("weekWindows", () => {
-  it("returns Monday to Sunday weeks, oldest first, ending with the week of today", () => {
-    // 2026-10-15 is a Thursday.
-    const weeks = weekWindows("2026-10-15", 3);
-    expect(weeks).toEqual([
-      { from: "2026-09-28", to: "2026-10-04" },
-      { from: "2026-10-05", to: "2026-10-11" },
-      { from: "2026-10-12", to: "2026-10-18" },
-    ]);
-  });
-
-  it("keeps a Sunday in the week that started the Monday before", () => {
-    expect(weekWindows("2026-10-18", 1)).toEqual([{ from: "2026-10-12", to: "2026-10-18" }]);
-  });
-});
-
-describe("consistencyColumns", () => {
-  const day = (date: string, over = {}) => workout({ started_at: `${date}T12:00:00.000Z`, completed_at: `${date}T13:00:00.000Z`, ...over });
-
-  it("counts completed sessions per week and separates the unfinished week", () => {
-    const workouts = [
-      day("2026-10-05"),
-      day("2026-10-07"),
-      day("2026-10-09"),
-      day("2026-10-12"),
-      day("2026-10-13", { status: "abandoned" }),
-    ];
-    const r = consistencyColumns({ workouts, daysPerWeek: 3, today: "2026-10-15", timeZone: TZ, weeks: 3 });
-    expect(r.columns.map((c) => c.completed)).toEqual([0, 3, 1]);
-    expect(r.columns.map((c) => c.inProgress)).toEqual([false, false, true]);
-    expect(r.finishedWeeks).toBe(2);
-    expect(r.finishedCompleted).toBe(3);
-    expect(r.finishedPlanned).toBe(6);
-    expect(r.columns[2].planned).toBe(3);
-  });
-
-  it("has no planned figures without a program", () => {
-    const r = consistencyColumns({ workouts: [day("2026-10-12")], daysPerWeek: null, today: "2026-10-15", timeZone: TZ, weeks: 2 });
-    expect(r.finishedPlanned).toBeNull();
-    expect(r.columns.every((c) => c.planned === null)).toBe(true);
-  });
-});
 
 describe("exerciseOptions", () => {
   const bench = exercise({ name: "Bench Press" });
@@ -82,48 +24,59 @@ describe("exerciseOptions", () => {
   });
 });
 
-describe("metrics and series", () => {
+describe("headline measure and series", () => {
   const bench = exercise({ name: "Bench Press", load_type: "external" });
   const pushup = exercise({ name: "Push-up", load_type: "bodyweight" });
 
-  const sessions = (ex: typeof bench, rows: { date: string; reps: number; load: number | null }[]) => {
+  const sessions = (ex: typeof bench, rows: { date: string; reps: number; load: number | null }[], bodyweight: number | null = 180) => {
     const workouts = rows.map((r) => workout({ started_at: `${r.date}T12:00:00.000Z`, completed_at: `${r.date}T13:00:00.000Z` }));
     const sets = rows.map((r, i) =>
       set({ workout_id: workouts[i].id, exercise_id: ex.id, reps: r.reps, load: r.load, rir: 2, completed_at: `${r.date}T12:30:00.000Z` }),
     );
-    return exerciseSeries({ exercise: ex, workouts, sets, bodyweight: 180, timeZone: TZ });
+    return exerciseSeries({ exercise: ex, workouts, sets, bodyweight, timeZone: TZ });
   };
 
-  it("offers e1RM, top load, reps and volume for a barbell lift", () => {
+  it("tells a barbell lift as an estimated max", () => {
     const series = sessions(bench, [
       { date: "2026-10-01", reps: 8, load: 135 },
       { date: "2026-10-08", reps: 8, load: 145 },
     ]);
-    expect(availableMetrics(bench, series).map((m) => m.value)).toEqual(["e1rm", "load", "reps", "volume"]);
+    expect(headlineMeasure(bench, series)).toBe("e1rm");
   });
 
-  it("charts reps first when most sessions go past the e1RM rep cap", () => {
+  it("tells a lift in reps when most sessions go past the estimate's rep cap", () => {
     const series = sessions(bench, [
       { date: "2026-10-01", reps: 12, load: 20 },
       { date: "2026-10-08", reps: 15, load: 20 },
       { date: "2026-10-15", reps: 18, load: 20 },
     ]);
-    expect(availableMetrics(bench, series).map((m) => m.value)).toEqual(["reps", "e1rm", "load", "volume"]);
+    expect(headlineMeasure(bench, series)).toBe("reps");
   });
 
-  it("hides the estimated max for plain bodyweight work and shows it once weight is added", () => {
+  it("tells plain bodyweight work in reps, and an estimated max once weight is added", () => {
     const plain = sessions(pushup, [
       { date: "2026-10-01", reps: 15, load: null },
       { date: "2026-10-08", reps: 18, load: null },
     ]);
-    expect(availableMetrics(pushup, plain).map((m) => m.value)).toEqual(["reps", "volume"]);
+    expect(headlineMeasure(pushup, plain)).toBe("reps");
     const weighted = sessions(pushup, [
       { date: "2026-10-01", reps: 8, load: 10 },
       { date: "2026-10-08", reps: 8, load: 15 },
     ]);
-    expect(availableMetrics(pushup, weighted).map((m) => m.value)).toEqual(["e1rm", "load", "reps", "volume"]);
-    expect(availableMetrics(pushup, weighted)[1].name).toBe("added load");
-    expect(availableMetrics(pushup, weighted)[0].label).toBe("e1RM");
+    expect(headlineMeasure(pushup, weighted)).toBe("e1rm");
+  });
+
+  it("falls back to reps for a weighted bodyweight lift with no bodyweight on file", () => {
+    const series = sessions(
+      pushup,
+      [
+        { date: "2026-10-01", reps: 8, load: 10 },
+        { date: "2026-10-08", reps: 8, load: 15 },
+      ],
+      null,
+    );
+    expect(series.every((p) => p.top_e1rm === null)).toBe(true);
+    expect(headlineMeasure(pushup, series)).toBe("reps");
   });
 
   it("builds chart points in order and drops sessions without a value", () => {
@@ -132,157 +85,41 @@ describe("metrics and series", () => {
       { date: "2026-10-08", reps: 5, load: null },
       { date: "2026-10-15", reps: 8, load: 150 },
     ]);
-    const { points, source } = seriesToLine(series, "load");
-    expect(points.map((p) => p.y)).toEqual([135, 150]);
+    const points = seriesToLine(series, "e1rm");
+    expect(points.map((p) => Math.round(p.y))).toEqual([171, 190]);
     expect(points.map((p) => p.label)).toEqual(["Oct 1", "Oct 15"]);
-    expect(source).toHaveLength(2);
     expect(points[0].x).toBeLessThan(points[1].x);
-    expect(seriesToLine(series, "reps").points.map((p) => p.y)).toEqual([8, 5, 8]);
-  });
-
-  it("describes the best set and the session", () => {
-    const [point] = sessions(bench, [{ date: "2026-10-01", reps: 8, load: 135 }]);
-    expect(bestSetText(point, "external", "lb")).toBe("135 lb × 8");
-    expect(sessionFacts(point, "external", "lb")).toEqual([
-      { label: "Best set", value: "135 lb × 8" },
-      { label: "Work sets", value: "1 set, 8 reps in total" },
-      { label: "Reps in reserve", value: "2 on average" },
-    ]);
-    const [bw] = sessions(pushup, [{ date: "2026-10-01", reps: 12, load: null }]);
-    expect(bestSetText(bw, "bodyweight", "lb")).toBe("12 reps");
-    expect(bestSetText({ ...bw, best_set: { reps: 6, load: 25, e1rm: null } }, "bodyweight", "kg")).toBe("+25 kg × 6");
-    expect(bestSetText({ ...bw, best_set: { reps: 6, load: 20, e1rm: null } }, "assisted", "lb")).toBe("6 reps with 20 lb assistance");
-  });
-
-  it("flags pain in the session facts", () => {
-    const w = workout({ started_at: "2026-10-01T12:00:00.000Z", completed_at: "2026-10-01T13:00:00.000Z" });
-    const series = exerciseSeries({
-      exercise: bench,
-      workouts: [w],
-      sets: [set({ workout_id: w.id, exercise_id: bench.id, reps: 5, load: 100, pain: true })],
-      bodyweight: null,
-      timeZone: TZ,
-    });
-    expect(sessionFacts(series[0], "external", "lb")).toContainEqual({ label: "Pain", value: "Flagged in this session" });
+    expect(seriesToLine(series, "reps").map((p) => p.y)).toEqual([8, 5, 8]);
   });
 });
 
-describe("trendSummary", () => {
+describe("sinceText", () => {
   const pts = (...ys: number[]) => ys.map((y, i) => ({ x: i, y, label: `D${i}` }));
 
-  it("reports direction and size, and nothing for fewer than two points", () => {
-    expect(trendSummary(pts(135, 150), "lb")).toBe("Up 15 lb since D0 (2 sessions)");
-    expect(trendSummary(pts(150, 140, 142.5), "lb")).toBe("Down 7.5 lb since D0 (3 sessions)");
-    expect(trendSummary(pts(100, 100), "lb")).toBe("No change since D0 (2 sessions)");
-    expect(trendSummary(pts(100), "lb")).toBeNull();
-    expect(trendSummary([], "lb")).toBeNull();
+  it("reports direction and size from the first point, in the unit the figure uses", () => {
+    expect(sinceText(pts(186, 196, 207, 192), "e1rm", "lb")).toBe("Up 6 lb since D0");
+    expect(sinceText(pts(150, 140), "e1rm", "kg")).toBe("Down 10 kg since D0");
+    expect(sinceText(pts(100, 100), "e1rm", "lb")).toBe("No change since D0");
   });
-});
 
-describe("metricDigits", () => {
-  it("rounds an estimate and a total to whole numbers and keeps one decimal for loads and reps", () => {
-    expect(metricDigits("e1rm")).toBe(0);
-    expect(metricDigits("volume")).toBe(0);
-    expect(metricDigits("load")).toBe(1);
-    expect(metricDigits("reps")).toBe(1);
+  it("works from the rounded values the screen shows", () => {
+    expect(sinceText(pts(185.6, 192.3), "e1rm", "lb")).toBe("Up 6 lb since D0");
   });
-});
 
-describe("figureGroups", () => {
-  it("sets numbers and the multiplication sign as figures and units as words", () => {
-    expect(figureGroups("160 lb × 6")).toEqual([
-      { figure: true, text: "160" },
-      { figure: false, text: "lb" },
-      { figure: true, text: "× 6" },
-    ]);
-    expect(figureGroups("12 reps")).toEqual([
-      { figure: true, text: "12" },
-      { figure: false, text: "reps" },
-    ]);
-    expect(figureGroups("6 reps with 20 lb assistance").map((g) => g.text)).toEqual(["6", "reps with", "20", "lb assistance"]);
-  });
-});
-
-describe("trendFigure", () => {
-  const pts = (...ys: number[]) => ys.map((y, i) => ({ x: i, y, label: `D${i}` }));
-
-  it("gives the signed change, the unit, where it started and how many sessions", () => {
-    expect(trendFigure(pts(186, 196, 201, 207, 192), "lb")).toEqual({ value: "+6", unit: "lb", since: "D0", sessions: 5 });
-    expect(trendFigure(pts(150, 140, 142.5), "lb")).toEqual({ value: "−7.5", unit: "lb", since: "D0", sessions: 3 });
-    expect(trendFigure(pts(100, 100), "lb")?.value).toBe("0");
-    expect(trendFigure(pts(1000, 2250), "lb", 0)?.value).toBe("+1,250");
+  it("counts reps with singular and plural", () => {
+    expect(sinceText(pts(8, 9), "reps", "lb")).toBe("Up 1 rep since D0");
+    expect(sinceText(pts(8, 5), "reps", "lb")).toBe("Down 3 reps since D0");
   });
 
   it("is null for fewer than two points", () => {
-    expect(trendFigure(pts(100), "lb")).toBeNull();
-    expect(trendFigure([], "lb")).toBeNull();
+    expect(sinceText(pts(100), "e1rm", "lb")).toBeNull();
+    expect(sinceText([], "e1rm", "lb")).toBeNull();
   });
 });
 
-describe("volumeRows", () => {
-  it("sorts trained muscles by sets and lists the rest as untrained", () => {
-    const bench = exercise({ primary_muscle: "chest", secondary_muscles: ["triceps", "front_delts"] });
-    const w = workout({ started_at: "2026-10-13T12:00:00.000Z", completed_at: "2026-10-13T13:00:00.000Z" });
-    const sets = [1, 2, 3, 4].map((i) => set({ workout_id: w.id, exercise_id: bench.id, rir: 2, set_index: i }));
-    const volumes = weeklyHardSets({ workouts: [w], sets, exercises: [bench], weekStart: "2026-10-12", timeZone: TZ });
-    const r = volumeRows(volumes);
-    expect(r.rows.map((x) => [x.label, x.value])).toEqual([
-      ["Chest", 4],
-      ["Front delts", 2],
-      ["Triceps", 2],
-    ]);
-    expect(r.untrained).toHaveLength(12);
-    expect(r.untrained).toContain("Quads");
-    expect(r.total).toBe(4);
-    expect(r.rows[0].detail).toBe("4 direct sets, 0 indirect");
-  });
-});
-
-describe("decisionChangeRows", () => {
-  const bench = exercise({ name: "Bench Press" });
-  const incline = exercise({ name: "Incline Press" });
-  const ctx: DiffContext = {
-    planned: new Map(),
-    days: new Map(),
-    exercises: new Map([bench, incline].map((e) => [e.id, e])),
-    equipment: new Map(),
-    unit: "lb",
-  };
-  const item = (over: Partial<DecisionItem>): DecisionItem => ({
-    decided_at: "2026-10-12T12:00:00.000Z",
-    workout_id: null,
-    exercise_id: bench.id,
-    exercise: "Bench Press",
-    from_exercise: null,
-    action: "increase_load",
-    before: { exercise_id: bench.id, sets: 3, rep_min: 6, rep_max: 10, target_rir: 2, load: 135 },
-    after: { exercise_id: bench.id, sets: 3, rep_min: 6, rep_max: 10, target_rir: 2, load: 140 },
-    reason: "x",
-    ...over,
-  });
-
-  it("lists only what changed", () => {
-    expect(decisionChangeRows(item({}), ctx)).toEqual([{ label: "Load", before: "135 lb", after: "140 lb" }]);
-  });
-
-  it("is empty for a hold", () => {
-    expect(decisionChangeRows(item({ action: "hold", after: item({}).before }), ctx)).toEqual([]);
-  });
-
-  it("covers a variation change without comparing loads across exercises", () => {
-    const rows = decisionChangeRows(
-      item({
-        action: "advance_variation",
-        from_exercise: "Bench Press",
-        exercise: "Incline Press",
-        exercise_id: incline.id,
-        after: { exercise_id: incline.id, sets: 3, rep_min: 6, rep_max: 10, target_rir: 2, load: null },
-      }),
-      ctx,
-    );
-    expect(rows).toEqual([
-      { label: "Exercise", before: "Bench Press", after: "Incline Press" },
-      { label: "Load", before: null, after: "Not set" },
-    ]);
+describe("shown", () => {
+  it("rounds to a whole number with a thousands separator", () => {
+    expect(shown(191.6)).toBe("192");
+    expect(shown(1005.2)).toBe("1,005");
   });
 });

@@ -9,10 +9,10 @@ import { useWorkouts } from "@/lib/local";
 import { copyText, reportFilename, saveTextFile } from "./browser-actions";
 import { generateReport } from "./report-data";
 
-const KINDS: { kind: ReportKind; title: string; detail: string }[] = [
-  { kind: "session", title: "Last session", detail: "Latest workout vs the one before" },
-  { kind: "week", title: "Last 7 days", detail: "Sessions, volume and recovery" },
-  { kind: "month", title: "Last 4 weeks", detail: "The same, with four week trends" },
+const KINDS: { kind: ReportKind; title: string }[] = [
+  { kind: "session", title: "Last workout" },
+  { kind: "week", title: "Last 7 days" },
+  { kind: "month", title: "Last 4 weeks" },
 ];
 
 type State =
@@ -43,11 +43,11 @@ export function ReportsPanel({ unit }: { unit: Unit }) {
   return (
     <div className="flex flex-col gap-4">
       <ListGroup label="Report type" className="border-t border-rule">
-        {KINDS.map(({ kind, title, detail }) => (
+        {KINDS.map(({ kind, title }) => (
           <ListRow
             key={kind}
             title={title}
-            subtitle={kind === "session" && finished !== undefined && !hasSession ? "Finish a workout first." : detail}
+            subtitle={kind === "session" && finished !== undefined && !hasSession ? "Finish a workout first." : undefined}
             trailing={state.phase === "working" && state.kind === kind ? "Building" : state.phase === "ready" && state.kind === kind ? "Ready" : undefined}
             chevron
             disabled={(kind === "session" && !hasSession) || state.phase === "working"}
@@ -65,12 +65,6 @@ export function ReportsPanel({ unit }: { unit: Unit }) {
       {state.phase === "ready" ? (
         <div className="flex flex-col gap-4">
           <h3 className="text-name">{named(state.report.title)}</h3>
-          {state.report.json.missing.length > 0 ? (
-            <p className="text-why">{`Not in this report: ${state.report.json.missing.join("; ")}.`}</p>
-          ) : null}
-          <pre tabIndex={0} aria-label="Report text" className="max-h-72 overflow-auto whitespace-pre-wrap border-y border-rule py-3 font-sans text-small">
-            {state.report.markdown}
-          </pre>
           <Button variant="primary" className="bleed" onClick={() => void copy(state.report.markdown, "Report")}>
             Copy report
           </Button>
@@ -85,10 +79,6 @@ export function ReportsPanel({ unit }: { unit: Unit }) {
               onClick={() => void saveTextFile(reportFilename(state.report, "json"), `${JSON.stringify(state.report.json, null, 2)}\n`, "application/json")}
             />
           </ListGroup>
-          <p className="text-why">
-            The prompt wraps this report with instructions for a hypertrophy coach. Paste it into any Claude chat. Nothing is sent from
-            here.
-          </p>
         </div>
       ) : null}
     </div>

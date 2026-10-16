@@ -1,5 +1,5 @@
 import type { Exercise, PrescriptionSnapshot, Unit, WorkoutSet } from "@/lib/domain/types";
-import { formatLoad, formatNumber } from "./format";
+import { formatLoad } from "./format";
 
 export const DEFAULT_REST_SECONDS = 90;
 export const WARMUP_REST_SECONDS = 60;
@@ -73,7 +73,10 @@ export interface DraftArgs {
   last: { sets: Pick<WorkoutSet, "reps" | "load">[] } | null;
 }
 
-/** What the entry form starts with: the previous set today, else the prescription, else last time. */
+/**
+ * What the entry form starts with: the previous set today, else the prescription, else last time.
+ * Effort starts at the plan's target (Good) on every set, so a Hard or Easy is always a choice.
+ */
 export function initialDraft(args: DraftArgs): SetDraft {
   const { prescription, exercise } = args;
   const base = { warmup: false, pain: false, note: "" };
@@ -83,7 +86,7 @@ export function initialDraft(args: DraftArgs): SetDraft {
       ...base,
       reps: previous.reps,
       load: usesLoad(exercise) ? previous.load : null,
-      rir: previous.rir ?? prescription.target_rir,
+      rir: prescription.target_rir,
     };
   }
   if (exercise.id === args.planExerciseId) {
@@ -135,20 +138,17 @@ export function draftToRow(args: {
   };
 }
 
-/** "12 reps at 50 lb, 2 RIR". Read aloud, so it spells everything out. */
-export function describeSet(set: Pick<WorkoutSet, "reps" | "load" | "rir">, unit: Unit): string {
-  const parts = [`${set.reps} ${set.reps === 1 ? "rep" : "reps"}`];
-  if (set.load !== null) parts[0] += ` at ${formatLoad(set.load, unit)}`;
-  if (set.rir !== null) parts.push(`${set.rir} RIR`);
-  return parts.join(", ");
+/** "12 reps at 50 lb". Read aloud, so it spells everything out. */
+export function describeSet(set: Pick<WorkoutSet, "reps" | "load">, unit: Unit): string {
+  const reps = `${set.reps} ${set.reps === 1 ? "rep" : "reps"}`;
+  return set.load !== null ? `${reps} at ${formatLoad(set.load, unit)}` : reps;
 }
 
 const repsOf = (reps: number): string => `${reps} ${reps === 1 ? "rep" : "reps"}`;
 
-/** "160 lb × 6 at 2 RIR", or "12 reps at 2 RIR" when there is no weight. The on-screen form of a logged set. */
-export function setLine(set: Pick<WorkoutSet, "reps" | "load" | "rir">, unit: Unit): string {
-  const lift = set.load !== null ? `${formatLoad(set.load, unit)} × ${set.reps}` : repsOf(set.reps);
-  return set.rir !== null ? `${lift} at ${set.rir} RIR` : lift;
+/** "160 lb × 6", or "12 reps" when there is no weight. The on-screen form of a logged set. */
+export function setLine(set: Pick<WorkoutSet, "reps" | "load">, unit: Unit): string {
+  return set.load !== null ? `${formatLoad(set.load, unit)} × ${set.reps}` : repsOf(set.reps);
 }
 
 /** "160 lb × 6, 6, 6" for a shared weight, "160 lb × 6, 165 lb × 5" for changing ones, "12, 11 reps" with no weight. */
@@ -163,13 +163,6 @@ export function lastSessionLine(sets: Pick<WorkoutSet, "reps" | "load">[], unit:
   return sets.map((s) => (s.load !== null ? `${formatLoad(s.load, unit)} × ${s.reps}` : `${s.reps}`)).join(", ");
 }
 
-/** What the Log set band shows on its right: "160 × 6, 2 RIR". No unit, because the weight row beside it has one. */
-export function draftSummary(draft: SetDraft, exercise: LoadKind): string {
-  const reps = draft.reps ?? 0;
-  const lift = usesLoad(exercise) && draft.load !== null ? `${formatNumber(draft.load)} × ${reps}` : repsOf(reps);
-  return !draft.warmup && draft.rir !== null ? `${lift}, ${draft.rir} RIR` : lift;
-}
-
 export function restSecondsFor(planned: { rest_seconds: number | null }, warmup: boolean): number {
   return warmup ? WARMUP_REST_SECONDS : (planned.rest_seconds ?? DEFAULT_REST_SECONDS);
 }
@@ -177,6 +170,24 @@ export function restSecondsFor(planned: { rest_seconds: number | null }, warmup:
 /** Index of the first slot that still has sets to do, or -1 when everything is done. */
 export function firstOpenIndex(slots: { workSets: number; target: number }[]): number {
   return slots.findIndex((s) => s.workSets < s.target);
+}
+
+/**
+ * The planned exercise to work on after a set, going round from the one just done: itself while it
+ * has sets left, then the next ones in order, then any that were skipped earlier. Null when every
+ * exercise is done. `workSetLogged` says the set just saved counts as a work set, which the
+ * slots do not show yet.
+ */
+export function nextToDo(
+  slots: { id: string; workSets: number; target: number }[],
+  currentId: string,
+  workSetLogged: boolean,
+): string | null {
+  const at = slots.findIndex((s) => s.id === currentId);
+  const order = at === -1 ? slots : [...slots.slice(at), ...slots.slice(0, at)];
+  const left = (s: { id: string; workSets: number; target: number }) =>
+    s.target - s.workSets - (s.id === currentId && workSetLogged ? 1 : 0);
+  return order.find((s) => left(s) > 0)?.id ?? null;
 }
 
 export interface SessionTotals {

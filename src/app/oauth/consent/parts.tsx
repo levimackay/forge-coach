@@ -118,7 +118,7 @@ export function ConsentCard({
         label="Claude will be able to"
         items={[
           "Read your profile, goals, equipment and body measurements",
-          "Read your program, workouts, sets, recovery logs and the engine's progression decisions",
+          "Read your program, workouts, sets, sleep logs and the weight changes the app made",
           "Suggest changes to your program",
         ]}
       />

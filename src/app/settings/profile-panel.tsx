@@ -3,34 +3,27 @@
 import { useMemo, useState, type FormEvent } from "react";
 import type { Profile, Unit } from "@/lib/domain/types";
 import { NativeSelect } from "@/components/coach/native-select";
-import { Section } from "@/components/coach/section";
 import { Button, ButtonLink, EmptyState, Field, Segmented, Sheet, Skeleton, useToast } from "@/components/ui";
 import { putRow, useProfile, useWorkouts } from "@/lib/local";
 import { parseOptionalNumber } from "./equipment-form";
 
-export function ProfileSection() {
+export function ProfilePanel({ onDone }: { onDone: () => void }) {
   const profile = useProfile();
-  return (
-    <Section title="Profile">
-      {profile === undefined ? (
-        <Skeleton rows={5} />
-      ) : profile === null ? (
-        <EmptyState
-          title="Finish setup first"
-          action={
-            <ButtonLink href="/onboarding" variant="primary" className="bleed">
-              Set up FORGE
-            </ButtonLink>
-          }
-        >
-          Your name, unit and time zone are chosen during setup.
-        </EmptyState>
-      ) : (
-        // Keyed on the saved version so the form restarts from what was stored.
-        <ProfileForm key={profile.updated_at} profile={profile} />
-      )}
-    </Section>
-  );
+  if (profile === undefined) return <Skeleton rows={5} />;
+  if (profile === null) {
+    return (
+      <EmptyState
+        title="Finish setup first"
+        action={
+          <ButtonLink href="/onboarding" variant="primary" className="bleed">
+            Set up FORGE
+          </ButtonLink>
+        }
+      />
+    );
+  }
+  // Keyed on the saved version so the form restarts from what was stored.
+  return <ProfileForm key={profile.updated_at} profile={profile} onDone={onDone} />;
 }
 
 function zoneOptions(current: string): { value: string; label: string }[] {
@@ -47,7 +40,7 @@ function zoneOptions(current: string): { value: string; label: string }[] {
     .map((z) => ({ value: z, label: z.replace(/_/g, " ") }));
 }
 
-function ProfileForm({ profile }: { profile: Profile }) {
+function ProfileForm({ profile, onDone }: { profile: Profile; onDone: () => void }) {
   const { toast } = useToast();
   const history = useWorkouts({ limit: 1 });
   const [name, setName] = useState(profile.display_name ?? "");
@@ -79,6 +72,7 @@ function ProfileForm({ profile }: { profile: Profile }) {
         onboarded_at: profile.onboarded_at,
       });
       toast("Profile saved.");
+      onDone();
     } catch (err) {
       toast(`Could not save: ${err instanceof Error ? err.message : "unknown error"}`, { tone: "error" });
     } finally {
@@ -121,16 +115,9 @@ function ProfileForm({ profile }: { profile: Profile }) {
         inputMode="decimal"
         value={bodyweight}
         error={error}
-        hint="Used for pull-ups, dips and push-ups when your log has no weigh-in yet."
         onChange={(e) => setBodyweight(e.target.value)}
       />
-      <NativeSelect
-        label="Time zone"
-        value={zone}
-        onChange={setZone}
-        options={zones}
-        hint="Decides which day a workout belongs to in your charts and reports."
-      />
+      <NativeSelect label="Time zone" value={zone} onChange={setZone} options={zones} />
       <Button type="submit" variant="primary" className="bleed" loading={saving} disabled={!dirty}>
         Save profile
       </Button>

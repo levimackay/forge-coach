@@ -23,10 +23,10 @@ describe("UI primitives render on the server", () => {
   });
 
   it("Button draws primary and destructive actions as square bands and the live one in red", () => {
-    const primary = html(<Button variant="primary" detail="160 × 6, 2 RIR">Start workout</Button>);
+    const primary = html(<Button variant="primary" detail="160 × 6">Start workout</Button>);
     expect(primary).toContain("bg-ink");
-    expect(primary).toContain("min-h-16");
-    expect(primary).toContain("160 × 6, 2 RIR");
+    expect(primary).toContain("min-h-[var(--band-height)]");
+    expect(primary).toContain("160 × 6");
     expect(html(<Button variant="danger">Delete</Button>)).toContain("bg-red");
     const live = html(<Button variant="live" pinned="bottom">Log set 2</Button>);
     expect(live).toContain("bg-red");

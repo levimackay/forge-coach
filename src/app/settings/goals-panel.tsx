@@ -5,14 +5,13 @@ import { MUSCLES } from "@/lib/analytics";
 import type { Goal } from "@/lib/domain/types";
 import { sentence } from "@/components/coach/format";
 import { NativeSelect } from "@/components/coach/native-select";
-import { Section } from "@/components/coach/section";
-import { Button, EmptyState, Field, IconPlus, ListGroup, ListRow, Sheet, Skeleton, useToast } from "@/components/ui";
+import { Button, Field, IconPlus, ListGroup, ListRow, Sheet, Skeleton, useToast } from "@/components/ui";
 import { putRow, softDelete, useLive } from "@/lib/local";
 import { getDb } from "@/lib/local/db";
 import { CheckField } from "./check-field";
 import { GOAL_KINDS, blankGoal, draftFromGoal, goalSubtitle, parseGoal, type GoalDraft } from "./goal-form";
 
-export function GoalsSection() {
+export function GoalsPanel() {
   const goals = useLive(async () => {
     const rows = await getDb().goals.filter((g) => !g.deleted_at).toArray();
     return rows.sort((a, b) => Number(b.active) - Number(a.active) || a.created_at.localeCompare(b.created_at));
@@ -20,11 +19,8 @@ export function GoalsSection() {
   const [editing, setEditing] = useState<Goal | "new" | null>(null);
 
   return (
-    <Section title="Goals" description="Reports and Claude read these, so say what you are actually after.">
+    <>
       {goals === undefined ? <Skeleton rows={2} /> : null}
-      {goals?.length === 0 ? (
-        <EmptyState title="No goals yet">Add one, such as “Bigger back by spring”, so advice has something to aim at.</EmptyState>
-      ) : null}
       <ListGroup label="Goals" className="border-t border-rule">
         {goals?.map((g) => <ListRow key={g.id} title={g.description} subtitle={goalSubtitle(g)} chevron onClick={() => setEditing(g)} />)}
         <ListRow title="Add goal" trailing={<IconPlus size={20} />} disabled={goals === undefined} onClick={() => setEditing("new")} />
@@ -33,7 +29,7 @@ export function GoalsSection() {
       <Sheet open={editing !== null} onClose={() => setEditing(null)} title={editing === "new" ? "New goal" : "Edit goal"}>
         {editing !== null ? <GoalForm existing={editing === "new" ? null : editing} onDone={() => setEditing(null)} /> : null}
       </Sheet>
-    </Section>
+    </>
   );
 }
 

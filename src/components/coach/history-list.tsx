@@ -5,6 +5,7 @@ import type { CoachProposal, ProposalStatus } from "@/lib/domain/types";
 import { Button, IconChevronRight, ListRow, Sheet, named } from "@/components/ui";
 import { describeChanges, type DiffContext, type DiffMode } from "./diff";
 import { DiffView } from "./diff-view";
+import { plainReason } from "@/components/train/format";
 import { timeAgo } from "./format";
 import { sourceLabel } from "./proposal-card";
 
@@ -57,7 +58,7 @@ export function HistoryList({ proposals, ctx, online, nowIso, undoing, onUndo }:
                 <IconChevronRight size={20} className="shrink-0 transition-transform group-open:rotate-90" />
               </summary>
               <div className="flex flex-col gap-4 pb-4">
-                <p className="whitespace-pre-wrap text-why">{p.rationale}</p>
+                <p className="whitespace-pre-wrap text-why">{plainReason(p.rationale)}</p>
                 <div>
                   <DiffView
                     blocks={describeChanges(p.changes, ctx, MODE[p.status], p.inverse_changes)}
