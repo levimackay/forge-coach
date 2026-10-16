@@ -13,7 +13,7 @@ export interface NumberStepperProps {
   max?: number;
   unit?: string;
   hint?: string;
-  /** Taller buttons and larger digits for logging mid-set. */
+  /** The 116px row with the 88px figure, for the weight being logged. Without it the row is 80px. */
   large?: boolean;
   disabled?: boolean;
 }
@@ -81,22 +81,62 @@ export function NumberStepper({
   };
 
   const shown = draft ?? (value === null ? "" : formatNumber(value, step));
-  const buttonSize = large ? "h-16 w-16" : "h-12 w-12";
-  const button =
-    `${buttonSize} flex shrink-0 select-none items-center justify-center rounded-control border border-line ` +
-    "bg-raised text-ink active:bg-line disabled:opacity-40";
   const atMin = min !== undefined && value !== null && value <= min;
   const atMax = max !== undefined && value !== null && value >= max;
 
+  // The figure is the loudest thing in the row, so it steps down in size rather than clip a long value.
+  const chars = Math.max(shown.length, 1);
+  const figure = !large ? "text-fig-48" : chars <= 3 ? "text-fig-88" : chars === 4 ? "text-fig-72" : "text-fig-48";
+  const cell =
+    "flex h-full w-14 select-none items-center justify-center border-l border-rule " +
+    "active:bg-ink active:text-ground disabled:text-grey disabled:active:bg-transparent";
+
   return (
-    <div role="group" aria-labelledby={`${id}-label`} className="flex flex-col gap-1.5">
-      <label id={`${id}-label`} htmlFor={id} className="text-[15px] font-medium text-ink-dim">
-        {label}
-      </label>
-      <div className="flex items-center gap-2">
+    <div role="group" aria-labelledby={`${id}-label`}>
+      <div
+        className={`grid grid-cols-[var(--label-col)_minmax(0,1fr)_56px_56px] items-stretch border-t border-rule ${
+          large ? "h-[116px]" : "h-20"
+        }`}
+      >
+        <label id={`${id}-label`} htmlFor={id} className="flex items-center pr-2 text-body">
+          {label}
+        </label>
+        <div className="flex min-w-0 items-baseline pt-[14px]">
+          <span className="relative inline-grid min-w-0">
+            {/* Takes the width of the digits, so the unit sits against them and the input overlays it. */}
+            <span aria-hidden="true" className={`invisible whitespace-pre ${figure} ${large ? "-ml-1" : ""}`}>
+              {shown || "0"}
+            </span>
+            <input
+              id={id}
+              type="text"
+              inputMode="decimal"
+              autoComplete="off"
+              enterKeyHint="done"
+              disabled={disabled}
+              value={shown}
+              placeholder="0"
+              onFocus={(e) => e.currentTarget.select()}
+              onChange={(e) => {
+                const text = e.target.value;
+                setDraft(text);
+                const n = parseNumber(text);
+                if (n !== null && n === clamp(n, min, max)) onChange(n);
+              }}
+              onBlur={(e) => commit(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") e.currentTarget.blur();
+              }}
+              className={`absolute inset-y-0 -left-3 h-full w-[calc(100%+1.5rem)] bg-transparent px-3 py-0 text-ink placeholder:text-grey ${figure} ${
+                large ? "-ml-1" : ""
+              }`}
+            />
+          </span>
+          {unit ? <span className="ml-1 shrink-0 text-body">{unit}</span> : null}
+        </div>
         <button
           type="button"
-          className={button}
+          className={cell}
           aria-label={`Decrease ${label}`}
           disabled={disabled || atMin}
           onPointerDown={(e) => startHold(e, -1)}
@@ -109,40 +149,9 @@ export function NumberStepper({
         >
           <IconMinus />
         </button>
-        <div className="relative min-w-0 flex-1">
-          <input
-            id={id}
-            type="text"
-            inputMode="decimal"
-            autoComplete="off"
-            enterKeyHint="done"
-            disabled={disabled}
-            value={shown}
-            placeholder="0"
-            onFocus={(e) => e.currentTarget.select()}
-            onChange={(e) => {
-              const text = e.target.value;
-              setDraft(text);
-              const n = parseNumber(text);
-              if (n !== null && n === clamp(n, min, max)) onChange(n);
-            }}
-            onBlur={(e) => commit(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") e.currentTarget.blur();
-            }}
-            className={`w-full rounded-control border border-line bg-surface text-center font-semibold text-ink placeholder:text-ink-faint focus:border-ink focus:outline-none ${
-              large ? "h-16 text-[28px]" : "h-12 text-[20px]"
-            } ${unit ? "pr-8" : ""}`}
-          />
-          {unit ? (
-            <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-[15px] text-ink-faint">
-              {unit}
-            </span>
-          ) : null}
-        </div>
         <button
           type="button"
-          className={button}
+          className={cell}
           aria-label={`Increase ${label}`}
           disabled={disabled || atMax}
           onPointerDown={(e) => startHold(e, 1)}
@@ -156,7 +165,7 @@ export function NumberStepper({
           <IconPlus />
         </button>
       </div>
-      {hint ? <p className="text-[15px] text-ink-faint">{hint}</p> : null}
+      {hint ? <p className="pb-2 text-small">{hint}</p> : null}
     </div>
   );
 }

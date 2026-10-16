@@ -4,11 +4,11 @@ import { Button, ButtonLink } from "@/components/ui/button";
 
 export function OfflineActions() {
   return (
-    <div className="flex flex-col gap-3">
-      <Button variant="primary" size="lg" fullWidth onClick={() => window.location.reload()}>
+    <div className="flex flex-col gap-2">
+      <Button variant="primary" className="bleed" onClick={() => window.location.reload()}>
         Try again
       </Button>
-      <ButtonLink href="/today" fullWidth>
+      <ButtonLink href="/today" size="lg" fullWidth>
         Go to Today
       </ButtonLink>
     </div>

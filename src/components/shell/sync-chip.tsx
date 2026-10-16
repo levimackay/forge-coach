@@ -15,21 +15,11 @@ export function describeSync(s: SyncStatus): { text: string; tone: Tone } {
   return { text: "Synced", tone: "quiet" };
 }
 
-const DOT: Record<Tone, string> = {
-  quiet: "bg-ink-faint",
-  busy: "bg-ink-dim motion-safe:animate-pulse",
-  warn: "bg-ink",
-  error: "bg-danger",
-};
-
-const TEXT: Record<Tone, string> = {
-  quiet: "text-ink-faint",
-  busy: "text-ink-dim",
-  warn: "text-ink",
-  error: "text-danger",
-};
-
-export function SyncChip() {
+/**
+ * Sync state as plain text. A state that needs attention is set in medium weight,
+ * so it reads without colour.
+ */
+export function SyncChip({ align = "start" }: { align?: "start" | "end" }) {
   const status = useSyncStatus();
   const { text, tone } = describeSync(status);
   return (
@@ -38,14 +28,11 @@ export function SyncChip() {
         type="button"
         onClick={() => void syncNow()}
         aria-label={`Sync status: ${text}. Tap to sync now.`}
-        className="-mr-2 flex h-11 items-center px-2"
+        className={`inline-flex min-h-11 min-w-11 items-center text-small ${
+          align === "end" ? "justify-end" : "justify-start"
+        } ${tone === "warn" || tone === "error" ? "font-medium" : ""}`}
       >
-        <span
-          className={`flex h-7 items-center gap-2 rounded-full border border-line bg-surface px-3 text-[13px] font-medium ${TEXT[tone]}`}
-        >
-          <span aria-hidden="true" className={`h-2 w-2 rounded-full ${DOT[tone]}`} />
-          {text}
-        </span>
+        {text}
       </button>
       {/* Outside the button so changes are announced; button content is not a live region. */}
       <span role="status" className="sr-only">

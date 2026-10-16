@@ -49,10 +49,10 @@ export function DevHarness() {
   };
 
   return (
-    <div className="flex flex-1 flex-col gap-6 py-10">
+    <div className="flex flex-1 flex-col gap-8 py-10">
       <header className="flex flex-col gap-3">
-        <h1 className="title-large">Development fixture</h1>
-        <p className="text-[17px] text-ink-dim">
+        <h1 className="text-head">Development fixture.</h1>
+        <p>
           Fixture data, not real training. This loads a made-up lifter with five weeks of push, pull and legs history
           into this browser only, signs you in as a local fixture user and turns network sync off. It exists in
           development builds only.
@@ -60,22 +60,22 @@ export function DevHarness() {
       </header>
 
       <div className="flex flex-col gap-3">
-        <Button variant="primary" size="lg" fullWidth loading={busy} onClick={load}>
+        <Button variant="primary" className="bleed" loading={busy} onClick={load}>
           {active ? "Reload fixture data" : "Load fixture data"}
         </Button>
         {active ? (
-          <Button variant="danger" fullWidth disabled={busy} onClick={remove}>
+          <Button variant="danger" className="bleed" disabled={busy} onClick={remove}>
             Remove fixture and sign out
           </Button>
         ) : null}
         {message ? (
-          <p role="status" className="text-[15px] text-ink-dim">
+          <p role="status" className="text-small">
             {message}
           </p>
         ) : null}
       </div>
 
-      <ListGroup label="Screens">
+      <ListGroup label="Screens" className="border-t border-rule">
         {SCREENS.map(([label, href]) => (
           <ListRow key={href} title={label} subtitle={href} href={href} />
         ))}

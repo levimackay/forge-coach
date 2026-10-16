@@ -1,20 +1,21 @@
 "use client";
 
 import { useEffect, useId, useRef, type ReactNode } from "react";
-import { IconClose } from "./icons";
+import { named } from "./name";
 
 export interface SheetProps {
   open: boolean;
   onClose: () => void;
+  /** Shown as a section name, so it gets its period. */
   title: string;
   children: ReactNode;
-  /** Pinned under the scrolling content, for the primary action. */
+  /** Pinned under the scrolling content, full width, for the primary band. */
   footer?: ReactNode;
 }
 
 /**
- * A bottom sheet on the native dialog element, which gives focus trapping,
- * Escape to close and an inert page behind it without extra code.
+ * A full-width square sheet with a hairline on top, on the native dialog element,
+ * which gives focus trapping, Escape to close and an inert page behind it.
  */
 export function Sheet({ open, onClose, title, children, footer }: SheetProps) {
   const ref = useRef<HTMLDialogElement>(null);
@@ -40,27 +41,20 @@ export function Sheet({ open, onClose, title, children, footer }: SheetProps) {
     >
       {open ? (
         <div className="flex max-h-[90dvh] flex-col">
-          <div className="flex items-center justify-between gap-3 px-5 pb-1 pt-4">
-            <h2 id={titleId} className="title">
-              {title}
+          <div className="flex items-center justify-between gap-4 px-safe pt-2">
+            <h2 id={titleId} className="py-3 text-name">
+              {named(title)}
             </h2>
             <button
               type="button"
               onClick={onClose}
-              aria-label="Close"
-              className="-mr-3 flex h-11 w-11 items-center justify-center rounded-full text-ink-dim active:bg-raised"
+              className="-mr-2 inline-flex min-h-11 min-w-11 items-center justify-center px-2 text-body underline decoration-1 underline-offset-4 active:bg-ink active:text-ground"
             >
-              <IconClose />
+              Close
             </button>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-4 pt-2">{children}</div>
-          {footer ? (
-            <div className="border-t border-line px-5 pb-safe pt-3">
-              <div className="pb-3">{footer}</div>
-            </div>
-          ) : (
-            <div className="pb-safe" />
-          )}
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-safe pb-6 pt-2">{children}</div>
+          {footer ? <div className="border-t border-rule pb-safe">{footer}</div> : <div className="pb-safe" />}
         </div>
       ) : null}
     </dialog>

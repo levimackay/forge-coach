@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
-import { ForgeMark, IconMail } from "@/components/ui/icons";
+import { ForgeMark } from "@/components/ui/icons";
 
 type Mode = "signin" | "signup";
 
@@ -90,22 +90,20 @@ export function LoginForm() {
 
   if (confirmFor) {
     return (
-      <div className="flex flex-1 flex-col justify-center gap-6 py-10">
-        <IconMail size={44} className="text-ink-dim" />
+      <div className="flex flex-1 flex-col justify-center gap-8 py-10">
         <div className="flex flex-col gap-3">
-          <h1 className="title-large">Check your email</h1>
-          <p className="text-[17px] text-ink-dim">
-            We sent a confirmation link to <span className="text-ink">{confirmFor}</span>. Open it, then come back to
+          <h1 className="text-head">Check your email.</h1>
+          <p>
+            We sent a confirmation link to <span className="font-medium">{confirmFor}</span>. Open it, then come back to
             this app and sign in.
           </p>
-          <p className="text-[15px] text-ink-faint">
+          <p className="text-small">
             The link opens in your browser, not here. That is expected: sign in again in this app afterwards.
           </p>
         </div>
         <Button
           variant="primary"
-          size="lg"
-          fullWidth
+          className="bleed"
           onClick={() => {
             setConfirmFor(null);
             switchMode("signin");
@@ -119,20 +117,16 @@ export function LoginForm() {
   }
 
   return (
-    <div className="flex flex-1 flex-col justify-center gap-8 py-10">
-      <header className="flex flex-col gap-5">
-        <ForgeMark size={56} className="text-ember" />
+    <div className="flex flex-1 flex-col gap-10 pb-6 pt-10">
+      <header className="flex flex-col gap-4">
+        <ForgeMark size={120} className="-ml-1" />
         <div className="flex flex-col gap-2">
-          <h1 className="title-large">{mode === "signin" ? "Sign in" : "Create account"}</h1>
-          <p className="text-[17px] text-ink-dim">
-            {mode === "signin"
-              ? "Pick up your program where you left it."
-              : "An account keeps your training in sync between devices."}
-          </p>
+          <h1 className="text-head">{mode === "signin" ? "Sign in." : "Create account."}</h1>
+          {mode === "signup" ? <p>An account keeps your training in sync between devices.</p> : null}
         </div>
       </header>
 
-      <form noValidate onSubmit={submit} className="flex flex-col gap-4">
+      <form noValidate onSubmit={submit} className="flex flex-col gap-6">
         <Field
           label="Email"
           type="email"
@@ -157,15 +151,15 @@ export function LoginForm() {
           hint={mode === "signup" ? "At least 8 characters." : undefined}
         />
         {formError ? (
-          <p role="alert" className="text-[15px] text-danger">
+          <p role="alert" className="text-small font-medium">
             {formError}
           </p>
         ) : null}
-        <Button type="submit" variant="primary" size="lg" fullWidth loading={busy}>
+        <Button type="submit" variant="primary" className="bleed" loading={busy}>
           {mode === "signin" ? "Sign in" : "Create account"}
         </Button>
         {blockedBy !== null ? (
-          <Button variant="danger" fullWidth disabled={busy} onClick={() => void run(true)}>
+          <Button variant="danger" className="bleed" disabled={busy} onClick={() => void run(true)}>
             {`Delete ${blockedBy} unsynced ${blockedBy === 1 ? "change" : "changes"} and continue`}
           </Button>
         ) : null}
@@ -176,7 +170,7 @@ export function LoginForm() {
           {mode === "signin" ? "New here? Create an account" : "Have an account? Sign in"}
         </Button>
         {installHint ? (
-          <p className="text-[15px] text-ink-faint">
+          <p className="text-small">
             To use FORGE offline, add it to your Home Screen first (Share, then Add to Home Screen) and sign in from
             there. Data from a browser tab does not move into the installed app.
           </p>

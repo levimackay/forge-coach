@@ -26,7 +26,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     title: "FORGE",
-    statusBarStyle: "black-translucent",
+    statusBarStyle: "black",
     startupImage: LAUNCH_SCREENS.map(([w, h, ratio]) => ({
       url: `/splash/splash-${w * ratio}x${h * ratio}.png`,
       media: `(device-width: ${w}px) and (device-height: ${h}px) and (-webkit-device-pixel-ratio: ${ratio}) and (orientation: portrait)`,
@@ -38,13 +38,23 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#14110e",
+  themeColor: "#000000",
   colorScheme: "dark",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" className="h-full">
+      <head>
+        {/* The only typeface, so it is requested with the document rather than when the CSS is parsed. */}
+        <link
+          rel="preload"
+          href="/fonts/SofiaSansSemiCondensed-wght.woff2"
+          as="font"
+          type="font/woff2"
+          crossOrigin="anonymous"
+        />
+      </head>
       <body className="min-h-full">
         <Providers>{children}</Providers>
       </body>

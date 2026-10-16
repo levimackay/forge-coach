@@ -1,37 +1,133 @@
 @import "tailwindcss";
 
+/* One family for everything, self-hosted. Licence: public/fonts/OFL.txt. */
+@font-face {
+  font-family: "Sofia Sans Semi Condensed";
+  src: url("/fonts/SofiaSansSemiCondensed-wght.woff2") format("woff2");
+  font-weight: 1 1000;
+  font-style: normal;
+  font-display: block;
+}
+
 /*
-  FORGE design tokens. Dark only: warm near-black ground for gym lighting and OLED,
-  off-white ink, and a single ember accent reserved for the primary action and
-  progress marks. Utilities generated from these: bg-ground, bg-surface, bg-raised,
-  border-line, text-ink, text-ink-dim, text-ink-faint, bg-ember, text-ember,
-  text-on-ember, text-danger.
+  FORGE design tokens. Everything not listed here is switched off, so a stray
+  utility from the default palette, type scale, radius or shadow set renders nothing.
+
+  Colour (utilities: bg-/text-/border-/outline- plus the name):
+    ground  #000000  the page, and the text on an ink band
+    ink     #f5f5f7  all content text, and the primary band
+    grey    #86868b  only inactive tabs, the inactive side of a word switch, inactive controls
+    rule    #424245  hairlines, never the only thing that identifies a control
+    red     #d5001c  only the live workout screen (rest bar, Log set band) and destructive confirmations
+
+  Type (text-* sets size, line height, weight and tracking together):
+    display   120/96  light      the day name on Today
+    fig-112 .. fig-24             light figures, tabular
+    head      28/32   regular    a lift picker or page name
+    name      20/24   medium     lift names, section names
+    band      22/28   medium     the label on a band
+    control   20/24   regular    rest timer cells
+    word      17/22   regular    word switches, metric tabs
+    body      16/22   regular    labels, values, prose
+    small     15/20   regular    status, tab bar, hints
+    why       15/20   light      engine reasons
 */
 @theme {
-  --color-ground: #14110e;
-  --color-surface: #1c1814;
-  --color-raised: #27211b;
-  --color-line: #38312a;
-  --color-ink: #f3ede4;
-  --color-ink-dim: #b3a99d;
-  --color-ink-faint: #8b8276;
-  --color-ember: #ff6b2b;
-  --color-ember-press: #e25517;
-  --color-on-ember: #14110e;
-  --color-danger: #ff6a5e;
-  --color-ok: #9ccf8f;
+  --color-*: initial;
+  --color-ground: #000000;
+  --color-ink: #f5f5f7;
+  --color-grey: #86868b;
+  --color-rule: #424245;
+  --color-red: #d5001c;
 
-  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui,
-    "Segoe UI", Roboto, sans-serif;
+  --font-*: initial;
+  --font-sans: "Sofia Sans Semi Condensed", "Arial Narrow", Arial, sans-serif;
 
-  --radius-card: 18px;
-  --radius-control: 14px;
+  --font-weight-*: initial;
+  --font-weight-light: 300;
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
 
-  --tabbar-height: 64px;
+  --radius-*: initial;
+  --radius-xs: 0;
+  --radius-sm: 0;
+  --radius-md: 0;
+  --radius-lg: 0;
+  --radius-xl: 0;
+  --radius-2xl: 0;
+  --radius-3xl: 0;
+  --radius-4xl: 0;
+
+  --shadow-*: initial;
+  --inset-shadow-*: initial;
+  --drop-shadow-*: initial;
+  --text-shadow-*: initial;
+  --blur-*: initial;
+
+  --text-*: initial;
+  --text-display: 120px;
+  --text-display--line-height: 96px;
+  --text-display--font-weight: 300;
+  --text-display--letter-spacing: -0.05em;
+  --text-fig-112: 112px;
+  --text-fig-112--line-height: 1;
+  --text-fig-112--font-weight: 300;
+  --text-fig-112--letter-spacing: -0.05em;
+  --text-fig-88: 88px;
+  --text-fig-88--line-height: 1;
+  --text-fig-88--font-weight: 300;
+  --text-fig-88--letter-spacing: -0.05em;
+  --text-fig-72: 72px;
+  --text-fig-72--line-height: 1;
+  --text-fig-72--font-weight: 300;
+  --text-fig-72--letter-spacing: -0.04em;
+  --text-fig-48: 48px;
+  --text-fig-48--line-height: 1;
+  --text-fig-48--font-weight: 300;
+  --text-fig-48--letter-spacing: -0.02em;
+  --text-fig-32: 32px;
+  --text-fig-32--line-height: 1;
+  --text-fig-32--font-weight: 300;
+  --text-fig-32--letter-spacing: -0.02em;
+  --text-fig-24: 24px;
+  --text-fig-24--line-height: 1;
+  --text-fig-24--font-weight: 300;
+  --text-fig-24--letter-spacing: -0.02em;
+  --text-head: 28px;
+  --text-head--line-height: 32px;
+  --text-head--font-weight: 400;
+  --text-band: 22px;
+  --text-band--line-height: 28px;
+  --text-band--font-weight: 500;
+  --text-name: 20px;
+  --text-name--line-height: 24px;
+  --text-name--font-weight: 500;
+  --text-control: 20px;
+  --text-control--line-height: 24px;
+  --text-control--font-weight: 400;
+  --text-word: 17px;
+  --text-word--line-height: 22px;
+  --text-word--font-weight: 400;
+  --text-body: 16px;
+  --text-body--line-height: 22px;
+  --text-body--font-weight: 400;
+  --text-small: 15px;
+  --text-small--line-height: 20px;
+  --text-small--font-weight: 400;
+  --text-why: 15px;
+  --text-why--line-height: 20px;
+  --text-why--font-weight: 300;
 }
 
 :root {
   color-scheme: dark;
+  /* Tab bar row, above the bottom safe area. */
+  --tabbar-height: 49px;
+  /* Primary band, and the taller live band above the bottom safe area. */
+  --band-height: 64px;
+  --live-band-height: 76px;
+  /* Label column of a label / value row. */
+  --label-col: 76px;
 }
 
 html {
@@ -44,8 +140,10 @@ body {
   background: var(--color-ground);
   color: var(--color-ink);
   font-family: var(--font-sans);
-  font-size: 17px;
-  line-height: 1.4;
+  font-size: 16px;
+  line-height: 22px;
+  font-weight: 400;
+  letter-spacing: -0.1px;
   font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
@@ -66,12 +164,25 @@ body {
   button {
     font: inherit;
     color: inherit;
+    letter-spacing: inherit;
+    cursor: pointer;
+  }
+
+  b,
+  strong,
+  th {
+    font-weight: 500;
+  }
+
+  p {
+    text-wrap: pretty;
   }
 
   input,
   textarea,
   select {
     font: inherit;
+    letter-spacing: inherit;
     /* 16px or larger keeps iOS from zooming the page on focus. */
     font-size: max(16px, 1em);
   }
@@ -82,7 +193,17 @@ body {
   }
 
   ::selection {
-    background: color-mix(in srgb, var(--color-ember) 40%, transparent);
+    background: var(--color-ink);
+    color: var(--color-ground);
+  }
+
+  /* Browsers paint autofilled fields with their own tint; keep them on the ground. */
+  input:-webkit-autofill,
+  textarea:-webkit-autofill {
+    -webkit-text-fill-color: var(--color-ink);
+    caret-color: var(--color-ink);
+    box-shadow: inset 0 0 0 1000px var(--color-ground);
+    transition: background-color 9999s ease-out;
   }
 }
 
@@ -94,24 +215,16 @@ body {
   padding-bottom: env(safe-area-inset-bottom);
 }
 
+/* The 16px page gutter, widened on a side where a notch or the home indicator takes space. */
 @utility px-safe {
   padding-left: max(16px, env(safe-area-inset-left));
   padding-right: max(16px, env(safe-area-inset-right));
 }
 
-/* Page title scale used across screens. */
-@utility title-large {
-  font-size: 34px;
-  line-height: 1.1;
-  font-weight: 700;
-  letter-spacing: -0.022em;
-}
-
-@utility title {
-  font-size: 22px;
-  line-height: 1.2;
-  font-weight: 650;
-  letter-spacing: -0.012em;
+/* Pulls a block out to the screen edges from inside an element that uses px-safe. */
+@utility bleed {
+  margin-left: calc(-1 * max(16px, env(safe-area-inset-left)));
+  margin-right: calc(-1 * max(16px, env(safe-area-inset-right)));
 }
 
 dialog.sheet {
@@ -122,11 +235,10 @@ dialog.sheet {
   max-width: none;
   max-height: 90dvh;
   border: 0;
+  border-top: 1px solid var(--color-rule);
   padding: 0;
-  background: var(--color-surface);
+  background: var(--color-ground);
   color: var(--color-ink);
-  border-top-left-radius: 22px;
-  border-top-right-radius: 22px;
   overscroll-behavior: contain;
 }
 
@@ -135,7 +247,7 @@ dialog.sheet[open] {
 }
 
 dialog.sheet::backdrop {
-  background: rgb(0 0 0 / 0.62);
+  background: transparent;
 }
 
 html:has(dialog.sheet[open]) {
@@ -145,22 +257,18 @@ html:has(dialog.sheet[open]) {
 @keyframes sheet-up {
   from {
     transform: translateY(24px);
-    opacity: 0;
   }
   to {
     transform: none;
-    opacity: 1;
   }
 }
 
 @keyframes toast-in {
   from {
-    transform: translateY(8px);
-    opacity: 0;
+    transform: translateY(-8px);
   }
   to {
     transform: none;
-    opacity: 1;
   }
 }
 

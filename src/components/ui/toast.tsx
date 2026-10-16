@@ -59,8 +59,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {children}
       <div
         aria-live="polite"
-        className="pointer-events-none fixed inset-x-0 z-50 flex flex-col items-center gap-2 px-4"
-        style={{ bottom: "calc(var(--tabbar-height) + env(safe-area-inset-bottom) + 12px)" }}
+        className="pointer-events-none fixed inset-x-0 top-0 z-50 flex flex-col pt-safe"
       >
         {items.map((item) => (
           <ToastView key={item.id} item={item} onDismiss={dismiss} />
@@ -81,11 +80,11 @@ function ToastView({ item, onDismiss }: { item: ToastItem; onDismiss: (id: numbe
   return (
     <div
       role={error ? "alert" : undefined}
-      className={`pointer-events-auto flex min-h-12 w-full max-w-md items-center gap-3 rounded-control border bg-raised py-2 pl-4 pr-2 text-[16px] motion-safe:animate-[toast-in_180ms_ease-out] ${
-        error ? "border-danger text-ink" : "border-line text-ink"
+      className={`pointer-events-auto flex min-h-14 w-full items-center gap-4 px-safe motion-safe:animate-[toast-in_180ms_ease-out] ${
+        error ? "border-y-2 border-ink bg-ground text-ink" : "border-b border-ground bg-ink text-ground"
       }`}
     >
-      <p className="min-w-0 flex-1">{item.message}</p>
+      <p className="min-w-0 flex-1 py-3 text-body">{item.message}</p>
       {action ? (
         <button
           type="button"
@@ -93,7 +92,9 @@ function ToastView({ item, onDismiss }: { item: ToastItem; onDismiss: (id: numbe
             action.onClick();
             onDismiss(id);
           }}
-          className="min-h-11 shrink-0 rounded-[10px] px-3 font-semibold text-ember active:bg-line"
+          className={`-mr-2 inline-flex min-h-11 shrink-0 items-center px-2 text-body font-medium underline decoration-1 underline-offset-4 ${
+            error ? "active:bg-ink active:text-ground" : "active:bg-ground active:text-ink"
+          }`}
         >
           {action.label}
         </button>
@@ -102,7 +103,9 @@ function ToastView({ item, onDismiss }: { item: ToastItem; onDismiss: (id: numbe
           type="button"
           aria-label="Dismiss"
           onClick={() => onDismiss(id)}
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink-faint active:bg-line"
+          className={`-mr-3 flex h-11 w-11 shrink-0 items-center justify-center ${
+            error ? "active:bg-ink active:text-ground" : "active:bg-ground active:text-ink"
+          }`}
         >
           <IconClose size={20} />
         </button>

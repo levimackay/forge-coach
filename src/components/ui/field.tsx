@@ -15,9 +15,11 @@ type TextareaFieldProps = FieldBase & TextareaHTMLAttributes<HTMLTextAreaElement
 
 export type FieldProps = InputFieldProps | TextareaFieldProps;
 
+// A label above a control that is only an ink underline. An invalid field thickens the underline,
+// so the state never rests on colour.
 const CONTROL =
-  "w-full rounded-control border bg-surface px-4 text-ink placeholder:text-ink-faint " +
-  "focus:border-ink focus:outline-none focus-visible:outline-none aria-invalid:border-danger";
+  "w-full border-0 border-b border-ink bg-transparent px-0 text-body text-ink placeholder:text-grey " +
+  "aria-invalid:border-b-2";
 
 export function Field(props: FieldProps) {
   const id = useId();
@@ -25,11 +27,10 @@ export function Field(props: FieldProps) {
   const errorId = `${id}-error`;
   const { label, hint, error, suffix } = props;
   const describedBy = [error ? errorId : null, hint ? hintId : null].filter(Boolean).join(" ") || undefined;
-  const border = error ? "border-danger" : "border-line";
 
   return (
-    <div className="flex flex-col gap-1.5">
-      <label htmlFor={id} className="text-[15px] font-medium text-ink-dim">
+    <div className="flex flex-col gap-1">
+      <label htmlFor={id} className="text-body">
         {label}
       </label>
       <div className="relative">
@@ -37,10 +38,10 @@ export function Field(props: FieldProps) {
           <textarea
             {...stripBase(props)}
             id={id}
-            rows={props.rows ?? 3}
+            rows={props.rows ?? 2}
             aria-invalid={error ? true : undefined}
             aria-describedby={describedBy}
-            className={`${CONTROL} ${border} min-h-24 py-3 ${props.className ?? ""}`}
+            className={`${CONTROL} min-h-14 resize-none py-2 ${props.className ?? ""}`}
           />
         ) : (
           <input
@@ -48,22 +49,22 @@ export function Field(props: FieldProps) {
             id={id}
             aria-invalid={error ? true : undefined}
             aria-describedby={describedBy}
-            className={`${CONTROL} ${border} min-h-12 ${suffix ? "pr-14" : ""} ${props.className ?? ""}`}
+            className={`${CONTROL} min-h-12 ${suffix ? "pr-14" : ""} ${props.className ?? ""}`}
           />
         )}
         {suffix && !props.multiline ? (
-          <span className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-[15px] text-ink-faint">
+          <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center text-body">
             {suffix}
           </span>
         ) : null}
       </div>
       {error ? (
-        <p id={errorId} role="alert" className="text-[15px] text-danger">
+        <p id={errorId} role="alert" className="text-small font-medium">
           {error}
         </p>
       ) : null}
       {hint ? (
-        <p id={hintId} className="text-[15px] text-ink-faint">
+        <p id={hintId} className="text-small">
           {hint}
         </p>
       ) : null}

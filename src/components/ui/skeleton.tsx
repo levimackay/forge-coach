@@ -1,4 +1,10 @@
-/** Placeholder block for content that is still loading. Size it with className. */
-export function Skeleton({ className = "h-5 w-full" }: { className?: string }) {
-  return <div aria-hidden="true" className={`animate-pulse rounded-[10px] bg-raised ${className}`} />;
+/** Loading content as empty hairline rows, 56px each. Static, so nothing in it fades or glows. */
+export function Skeleton({ rows = 3, className = "" }: { rows?: number; className?: string }) {
+  return (
+    <div aria-hidden="true" className={className}>
+      {Array.from({ length: rows }, (_, i) => (
+        <div key={i} className="h-14 border-b border-rule" />
+      ))}
+    </div>
+  );
 }

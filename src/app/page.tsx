@@ -6,6 +6,7 @@ import { useAuth } from "@/lib/auth";
 import { useProfile, useSyncStatus } from "@/lib/local/hooks";
 import { syncNow } from "@/lib/local/sync";
 import { Button } from "@/components/ui/button";
+import { named } from "@/components/ui/name";
 import { Splash } from "@/components/shell/splash";
 
 /** Entry point only: decides where a visitor belongs and sends them there. */
@@ -30,16 +31,16 @@ export default function Home() {
   const waitingForData = signedIn && profile !== undefined && !onboarded && !sync.hydrated;
   if (waitingForData && (!sync.online || sync.error)) {
     return (
-      <div className="flex flex-1 flex-col justify-center gap-6 py-10">
+      <div className="flex flex-1 flex-col justify-center gap-8 py-10">
         <div className="flex flex-col gap-3">
-          <h1 className="title-large">Connect once to load your data</h1>
-          <p className="text-[17px] text-ink-dim">
+          <h1 className="text-head">{named("Connect once to load your data")}</h1>
+          <p>
             This device has not downloaded your account yet. Go online and it will load, then FORGE works offline
             from then on.
           </p>
+          {sync.error ? <p className="text-small">{sync.error}</p> : null}
         </div>
-        {sync.error ? <p className="text-[15px] text-ink-faint">{sync.error}</p> : null}
-        <Button variant="primary" size="lg" fullWidth loading={sync.syncing} onClick={() => void syncNow()}>
+        <Button variant="primary" className="bleed" loading={sync.syncing} onClick={() => void syncNow()}>
           Try again
         </Button>
       </div>

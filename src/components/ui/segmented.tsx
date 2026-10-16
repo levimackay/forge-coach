@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, type KeyboardEvent } from "react";
+import { Fragment, useRef, type KeyboardEvent } from "react";
 
 export interface SegmentedOption<T extends string> {
   value: T;
@@ -13,9 +13,16 @@ export interface SegmentedProps<T extends string> {
   options: SegmentedOption<T>[];
   /** Names the group for screen readers, for example "Weight unit". */
   label: string;
+  /** Puts a "/" between the words, as in Home / Gym. Leave it off for a row of metric tabs. */
+  slash?: boolean;
+  className?: string;
 }
 
-export function Segmented<T extends string>({ value, onChange, options, label }: SegmentedProps<T>) {
+/**
+ * A word switch. The chosen word is ink with a 2px underline and the rest are grey,
+ * so the state is readable without colour.
+ */
+export function Segmented<T extends string>({ value, onChange, options, label, slash = false, className = "" }: SegmentedProps<T>) {
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
 
   const onKeyDown = (e: KeyboardEvent<HTMLButtonElement>, index: number) => {
@@ -30,31 +37,33 @@ export function Segmented<T extends string>({ value, onChange, options, label }:
   };
 
   return (
-    <div
-      role="radiogroup"
-      aria-label={label}
-      className="flex rounded-control border border-line bg-surface p-1"
-    >
+    <div role="radiogroup" aria-label={label} className={`flex items-center ${className}`}>
       {options.map((option, i) => {
         const selected = option.value === value;
         return (
-          <button
-            key={option.value}
-            ref={(el) => {
-              refs.current[i] = el;
-            }}
-            type="button"
-            role="radio"
-            aria-checked={selected}
-            tabIndex={selected ? 0 : -1}
-            onClick={() => onChange(option.value)}
-            onKeyDown={(e) => onKeyDown(e, i)}
-            className={`min-h-11 flex-1 rounded-[10px] px-3 text-[15px] font-medium transition-colors ${
-              selected ? "bg-raised text-ink" : "text-ink-dim active:bg-raised/60"
-            }`}
-          >
-            {option.label}
-          </button>
+          <Fragment key={option.value}>
+            {slash && i > 0 ? (
+              <span aria-hidden="true" className="text-word text-grey">
+                /
+              </span>
+            ) : null}
+            <button
+              ref={(el) => {
+                refs.current[i] = el;
+              }}
+              type="button"
+              role="radio"
+              aria-checked={selected}
+              tabIndex={selected ? 0 : -1}
+              onClick={() => onChange(option.value)}
+              onKeyDown={(e) => onKeyDown(e, i)}
+              className={`inline-flex min-h-11 min-w-11 items-center justify-center px-2.5 text-word ${
+                selected ? "text-ink underline decoration-2 underline-offset-[7px]" : "text-grey"
+              }`}
+            >
+              {option.label}
+            </button>
+          </Fragment>
         );
       })}
     </div>

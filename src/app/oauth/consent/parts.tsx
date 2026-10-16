@@ -1,36 +1,26 @@
 import type { FormEvent, ReactNode } from "react";
-import { Button, Field } from "@/components/ui";
+import { Button, Field, IconChevronDown, named } from "@/components/ui";
 
 export function Screen({ children, actions }: { children: ReactNode; actions?: ReactNode }) {
   return (
-    <main className="flex min-h-dvh flex-col">
-      <div
-        className="mx-auto flex w-full max-w-md flex-1 flex-col gap-6 px-4"
-        style={{
-          paddingTop: "max(2rem, env(safe-area-inset-top))",
-          paddingBottom: actions ? "2rem" : "max(2rem, env(safe-area-inset-bottom))",
-        }}
-      >
-        {children}
-      </div>
+    <div className="flex flex-1 flex-col">
+      <div className="mx-auto flex w-full max-w-md flex-1 flex-col gap-8 pb-8 pt-8">{children}</div>
       {actions ? (
-        // Pinned so Approve and Deny are reachable without scrolling to the end of the list.
-        <div
-          className="sticky bottom-0 border-t border-line bg-ground px-4 pt-4"
-          style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
-        >
-          <div className="mx-auto flex w-full max-w-md flex-col gap-3">{actions}</div>
+        // Pinned so Approve and Deny are reachable without scrolling to the end of the list. The shell's
+        // gutter and bottom padding are cancelled so the bands run edge to edge and sit on the screen edge.
+        <div className="bleed pb-safe sticky bottom-0 -mb-[calc(env(safe-area-inset-bottom)+16px)] border-t border-rule bg-ground">
+          <div className="mx-auto flex w-full max-w-md flex-col">{actions}</div>
         </div>
       ) : null}
-    </main>
+    </div>
   );
 }
 
 export function Heading({ title, children }: { title: string; children?: ReactNode }) {
   return (
-    <header className="flex flex-col gap-2">
-      <h1 className="text-[28px] font-semibold leading-tight">{title}</h1>
-      {children ? <p className="text-[17px] leading-relaxed text-ink-dim">{children}</p> : null}
+    <header className="flex flex-col gap-3">
+      <h1 className="text-head">{named(title)}</h1>
+      {children ? <p>{children}</p> : null}
     </header>
   );
 }
@@ -50,7 +40,7 @@ export function Problem({ title, children, detail }: { title: string; children: 
     <Screen>
       <div role="alert" className="flex flex-col gap-3">
         <Heading title={title}>{children}</Heading>
-        {detail ? <p className="break-words text-[15px] text-ink-faint">{detail}</p> : null}
+        {detail ? <p className="break-words text-small">{detail}</p> : null}
       </div>
     </Screen>
   );
@@ -58,11 +48,11 @@ export function Problem({ title, children, detail }: { title: string; children: 
 
 function Points({ label, items }: { label: string; items: string[] }) {
   return (
-    <section aria-label={label} className="rounded-card border border-line bg-surface">
-      <h2 className="px-4 pt-4 text-[17px] font-semibold">{label}</h2>
-      <ul className="mt-2 divide-y divide-line">
+    <section aria-label={label}>
+      <h2 className="pb-3 font-medium">{label}</h2>
+      <ul className="border-t border-rule">
         {items.map((item) => (
-          <li key={item} className="px-4 py-3 text-[17px] leading-snug">
+          <li key={item} className="border-b border-rule py-3">
             {item}
           </li>
         ))}
@@ -99,24 +89,24 @@ export function ConsentCard({
         <>
           <Button
             variant="primary"
-            size="lg"
-            fullWidth
             loading={busy === "approve"}
             disabled={busy !== null}
             onClick={() => onDecide("approve")}
           >
             {busy === "approve" ? "Approving…" : "Approve"}
           </Button>
-          <Button
-            variant="secondary"
-            size="lg"
-            fullWidth
-            loading={busy === "deny"}
-            disabled={busy !== null}
-            onClick={() => onDecide("deny")}
-          >
-            {busy === "deny" ? "Denying…" : "Deny"}
-          </Button>
+          <div className="px-safe">
+            <Button
+              variant="secondary"
+              size="lg"
+              fullWidth
+              loading={busy === "deny"}
+              disabled={busy !== null}
+              onClick={() => onDecide("deny")}
+            >
+              {busy === "deny" ? "Denying…" : "Deny"}
+            </Button>
+          </div>
         </>
       }
     >
@@ -142,33 +132,36 @@ export function ConsentCard({
       />
 
       {details.trustedHost ? (
-        <p className="text-[15px] text-ink-dim">After you choose, you go back to {details.redirectHost}.</p>
+        <p className="text-small">After you choose, you go back to {details.redirectHost}.</p>
       ) : (
-        <p role="note" className="rounded-control border border-ember p-3 text-[15px] leading-snug">
+        <p role="note" className="border-y-2 border-ink py-3 font-medium">
           This request sends you to {details.redirectHost}, not claude.ai. Only approve it if you started this connection
           yourself.
         </p>
       )}
 
       {error ? (
-        <p role="alert" className="text-[15px] leading-snug text-danger">
+        <p role="alert" className="text-small font-medium">
           {error}
         </p>
       ) : null}
 
-      <details className="text-[15px] text-ink-dim">
-        <summary className="min-h-11 cursor-pointer py-2">Technical details</summary>
-        <dl className="mt-2 flex flex-col gap-3 break-words">
-          <div>
-            <dt className="font-medium text-ink">Client id</dt>
+      <details className="group text-small">
+        <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 py-2 [&::-webkit-details-marker]:hidden">
+          <span className="underline decoration-1 underline-offset-4">Technical details</span>
+          <IconChevronDown size={16} className="group-open:rotate-180" />
+        </summary>
+        <dl className="mt-2 break-words border-t border-rule">
+          <div className="border-b border-rule py-3">
+            <dt className="font-medium">Client id</dt>
             <dd>{details.clientId}</dd>
           </div>
-          <div>
-            <dt className="font-medium text-ink">Redirect address</dt>
+          <div className="border-b border-rule py-3">
+            <dt className="font-medium">Redirect address</dt>
             <dd>{details.redirectUri}</dd>
           </div>
-          <div>
-            <dt className="font-medium text-ink">Requested scopes</dt>
+          <div className="border-b border-rule py-3">
+            <dt className="font-medium">Requested scopes</dt>
             <dd>{details.scope || "none"}</dd>
           </div>
         </dl>
@@ -197,7 +190,7 @@ export function SignInCard({
       <Heading title="Sign in to continue">
         Claude is asking to connect to your FORGE training log. Sign in first, then you can approve or deny it.
       </Heading>
-      <form onSubmit={submit} className="flex flex-col gap-4" aria-busy={busy}>
+      <form onSubmit={submit} className="flex flex-col gap-6" aria-busy={busy}>
         <Field
           label="Email"
           name="email"
@@ -210,11 +203,11 @@ export function SignInCard({
         />
         <Field label="Password" name="password" type="password" autoComplete="current-password" required />
         {error ? (
-          <p role="alert" className="text-[15px] leading-snug text-danger">
+          <p role="alert" className="text-small font-medium">
             {error}
           </p>
         ) : null}
-        <Button type="submit" variant="primary" size="lg" fullWidth loading={busy}>
+        <Button type="submit" variant="primary" className="bleed" loading={busy}>
           {busy ? "Signing in…" : "Sign in"}
         </Button>
       </form>
