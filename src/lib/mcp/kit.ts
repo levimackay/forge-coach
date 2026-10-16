@@ -67,13 +67,22 @@ export function defineTool<S extends z.ZodObject>(
     },
     async (args: unknown, ctx) => {
       const auth = ctx.http?.authInfo;
-      if (!auth?.token) return errorResult("Not signed in. Reconnect the FORGE connector in Claude.");
+      if (!auth?.token) {
+        console.info(`[mcp] ${spec.name} refused: no auth`);
+        return errorResult("Not signed in. Reconnect the FORGE connector in Claude.");
+      }
       const userId = typeof auth.extra?.userId === "string" ? auth.extra.userId : "";
       try {
         const db = createUserClient(env, auth.token);
-        return toResult(await run(args as z.infer<S>, { db, userId }));
+        const result = toResult(await run(args as z.infer<S>, { db, userId }));
+        // Tool name and outcome only, so a connection can be verified without logging any training data.
+        console.info(`[mcp] ${spec.name} ${result.isError ? "error" : "ok"}`);
+        return result;
       } catch (error) {
-        if (error instanceof ToolError) return errorResult(error.message);
+        if (error instanceof ToolError) {
+          console.info(`[mcp] ${spec.name} error: tool`);
+          return errorResult(error.message);
+        }
         // Only the tool name and error class are logged: messages can carry the athlete's own text.
         console.error(`[mcp] ${spec.name} failed`, error instanceof Error ? error.name : typeof error);
         return errorResult("Something went wrong reading FORGE data. Try again in a moment.");
