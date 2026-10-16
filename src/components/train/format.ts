@@ -22,10 +22,22 @@ export function formatRepRange(min: number, max: number): string {
 
 type Prescription = Pick<PrescriptionSnapshot, "sets" | "rep_min" | "rep_max" | "target_rir">;
 
-/** "3 sets of 8 to 12 reps, 2 left in reserve" */
+/** "3 sets of 8 to 12 at 2 RIR" */
 export function formatPrescription(p: Prescription): string {
   const sets = `${p.sets} ${p.sets === 1 ? "set" : "sets"} of ${formatRepRange(p.rep_min, p.rep_max)}`;
-  return `${sets}, ${p.target_rir} RIR`;
+  return `${sets} at ${p.target_rir} RIR`;
+}
+
+/**
+ * The size of the day name on Today. 120px for a short name like "Legs.", stepping down so a longer
+ * one still fits the 358px of a phone screen on one line.
+ */
+export function dayDisplayClass(name: string): string {
+  const length = /[.!?]$/.test(name) ? name.length : name.length + 1;
+  if (length <= 7) return "text-display";
+  if (length <= 9) return "text-fig-88";
+  if (length <= 12) return "text-fig-72";
+  return "text-fig-48";
 }
 
 /** 75 seconds becomes "1:15". */
@@ -59,6 +71,15 @@ export function formatTime(iso: IsoDateTime, { timeZone }: Zone = {}): string {
   return new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit", timeZone }).format(new Date(iso));
 }
 
+/** "Oct 14", for a label column that is 76px wide. */
+export function formatMonthDay(iso: IsoDateTime, { timeZone }: Zone = {}): string {
+  return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", timeZone }).format(new Date(iso));
+}
+
+export function formatWeekday(iso: IsoDateTime, { timeZone }: Zone = {}): string {
+  return new Intl.DateTimeFormat(undefined, { weekday: "short", timeZone }).format(new Date(iso));
+}
+
 export function formatMonth(iso: IsoDateTime, { timeZone }: Zone = {}): string {
   return new Intl.DateTimeFormat(undefined, { month: "long", year: "numeric", timeZone }).format(new Date(iso));
 }
@@ -79,13 +100,6 @@ export const ACTION_LABEL: Record<ProgressionAction, string> = {
   pain_hold: "Held because of pain",
   substitute_equipment: "Swapped for your equipment",
 };
-
-/** Actions that mean the lifter earned something. Only these get the accent. */
-export const PROGRESS_ACTIONS: ReadonlySet<ProgressionAction> = new Set([
-  "increase_load",
-  "increase_reps",
-  "advance_variation",
-]);
 
 export const MUSCLE_LABEL: Record<Muscle, string> = {
   chest: "Chest",

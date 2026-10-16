@@ -3,10 +3,12 @@
 import { useMemo, useState } from "react";
 import { addDays, bodyweightTrend } from "@/lib/analytics";
 import { LineChart, type LinePoint } from "@/components/charts";
-import { Panel, Section } from "@/components/coach/section";
+import { Section } from "@/components/coach/section";
 import { ButtonLink, EmptyState, Skeleton } from "@/components/ui";
 import { useBodyMeasurements } from "@/lib/local";
 import { num, shortDate, signed } from "@/lib/reports/format";
+import { signedFigure } from "./derive";
+import { TrendStat } from "./trend-stat";
 import type { Athlete } from "./use-progress-data";
 
 const RANGE_DAYS = 90;
@@ -24,13 +26,13 @@ export function BodyweightSection({ athlete }: { athlete: Athlete }) {
   );
 
   let body;
-  if (!trend) body = <Skeleton className="h-56 w-full" />;
+  if (!trend) body = <Skeleton rows={4} />;
   else if (trend.points.length === 0) {
     body = (
       <EmptyState
         title="No bodyweight logged"
         action={
-          <ButtonLink href="/log" variant="primary">
+          <ButtonLink href="/log" variant="primary" className="bleed">
             Log your weight
           </ButtonLink>
         }
@@ -42,22 +44,28 @@ export function BodyweightSection({ athlete }: { athlete: Athlete }) {
     const points: LinePoint[] = trend.points.map((p) => ({ x: Date.parse(`${p.date}T00:00:00Z`), y: p.bodyweight, label: shortDate(p.date) }));
     const index = Math.min(pick ?? points.length - 1, points.length - 1);
     const unit = athlete.unit;
+    const first = trend.first as { date: string };
     body = (
-      <Panel className="flex flex-col gap-4">
-        {points.length >= 2 ? (
-          <LineChart points={points} selected={index} onSelect={setPick} label="Bodyweight by day" unit={unit} />
-        ) : (
-          <p className="text-[17px] text-ink-dim">
-            {`${num(points[0].y)} ${unit} on ${points[0].label}. Log another weigh-in and a trend line appears.`}
-          </p>
-        )}
+      <div>
         {trend.change !== null ? (
-          <ul className="flex flex-col gap-1 border-t border-line pt-3 text-[15px] text-ink-dim">
-            <li>{`${signed(trend.change)} ${unit} since ${shortDate((trend.first as { date: string }).date)}`}</li>
-            {trend.per_week !== null ? <li>{`Trend of ${signed(trend.per_week)} ${unit} per week`}</li> : null}
-          </ul>
+          <TrendStat
+            value={signedFigure(trend.change)}
+            unit={unit}
+            lines={[`since ${shortDate(first.date)}`, ...(trend.per_week !== null ? [`${signedFigure(trend.per_week)} ${unit} per week`] : [])]}
+            summary={[
+              `${signed(trend.change)} ${unit} since ${shortDate(first.date)}`,
+              ...(trend.per_week !== null ? [`Trend of ${signed(trend.per_week)} ${unit} per week`] : []),
+            ].join(". ")}
+          />
         ) : null}
-      </Panel>
+        <div className="mt-4">
+          {points.length >= 2 ? (
+            <LineChart points={points} selected={index} onSelect={setPick} label="Bodyweight by day" unit={unit} />
+          ) : (
+            <p>{`${num(points[0].y)} ${unit} on ${points[0].label}. Log another weigh-in and a trend line appears.`}</p>
+          )}
+        </div>
+      </div>
     );
   }
 

@@ -79,50 +79,57 @@ export function DataSection() {
 
   return (
     <Section title="Your data" description="Everything lives on this device and syncs to your account. These work offline.">
-      <div className="flex flex-col gap-3 rounded-card border border-line bg-surface p-4">
-        <h3 className="title">Export</h3>
-        <p className="text-[15px] text-ink-dim">
-          Saves one JSON file with your program, workouts, sets, recovery, body measurements and decisions.
-          {sync.pending > 0 ? ` ${sync.pending} recent changes have not synced yet; they are in the file.` : ""}
-        </p>
-        <Button variant="secondary" loading={exporting} onClick={() => void runExport()}>
-          Export all data
-        </Button>
+      <div className="border-y border-rule">
+        <div className="grid grid-cols-[var(--label-col)_minmax(0,1fr)] py-3">
+          <h3>Export</h3>
+          <div className="flex flex-col items-start gap-2">
+            <p className="text-why">
+              Saves one JSON file with your program, workouts, sets, recovery, body measurements and decisions.
+              {sync.pending > 0 ? ` ${sync.pending} recent changes have not synced yet; they are in the file.` : ""}
+            </p>
+            <Button variant="secondary" className="-ml-4" loading={exporting} onClick={() => void runExport()}>
+              Export all data
+            </Button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-[var(--label-col)_minmax(0,1fr)] border-t border-rule py-3">
+          <h3>Import</h3>
+          <div className="flex flex-col items-start gap-2">
+            <p className="text-why">
+              Add the contents of a FORGE export to this account. Rows with the same id are updated, nothing is deleted.
+            </p>
+            <input
+              ref={fileInput}
+              type="file"
+              accept="application/json,.json"
+              className="sr-only"
+              tabIndex={-1}
+              aria-hidden="true"
+              onChange={(e) => void pickFile(e)}
+            />
+            <Button
+              variant="secondary"
+              className="-ml-4"
+              loading={state.phase === "reading"}
+              disabled={state.phase === "importing"}
+              onClick={() => fileInput.current?.click()}
+            >
+              Choose an export file
+            </Button>
+          </div>
+        </div>
       </div>
 
-      <div className="flex flex-col gap-3 rounded-card border border-line bg-surface p-4">
-        <h3 className="title">Import</h3>
-        <p className="text-[15px] text-ink-dim">
-          Add the contents of a FORGE export to this account. Rows with the same id are updated, nothing is deleted.
+      {state.phase === "error" ? (
+        <p role="alert" className="border-l-2 border-ink pl-3 font-medium">
+          {state.message}
         </p>
-        <input
-          ref={fileInput}
-          type="file"
-          accept="application/json,.json"
-          className="sr-only"
-          tabIndex={-1}
-          aria-hidden="true"
-          onChange={(e) => void pickFile(e)}
-        />
-        <Button
-          variant="secondary"
-          loading={state.phase === "reading"}
-          disabled={state.phase === "importing"}
-          onClick={() => fileInput.current?.click()}
-        >
-          Choose an export file
-        </Button>
+      ) : null}
 
-        {state.phase === "error" ? (
-          <p role="alert" className="text-[15px] text-danger">
-            {state.message}
-          </p>
-        ) : null}
-
-        {state.phase === "preview" || state.phase === "importing" ? (
-          <ImportSummary state={state} onCancel={() => setState({ phase: "idle" })} onConfirm={confirmImport} />
-        ) : null}
-      </div>
+      {state.phase === "preview" || state.phase === "importing" ? (
+        <ImportSummary state={state} onCancel={() => setState({ phase: "idle" })} onConfirm={confirmImport} />
+      ) : null}
     </Section>
   );
 }
@@ -137,38 +144,34 @@ function ImportSummary({
   onConfirm: (data: ForgeExport) => Promise<void>;
 }) {
   if (state.phase === "importing") {
-    return (
-      <p role="status" className="text-[15px] text-ink-dim">
-        Importing. Keep this screen open.
-      </p>
-    );
+    return <p role="status">Importing. Keep this screen open.</p>;
   }
   const { preview, data, fileName } = state;
   return (
-    <div className="flex flex-col gap-3 border-t border-line pt-3">
-      <p className="break-all text-[17px] font-medium text-ink">{`${fileName} is a valid export`}</p>
-      <p className="text-[15px] text-ink-dim">{`Exported ${new Date(preview.exportedAt).toLocaleDateString(undefined, { dateStyle: "medium" })}.`}</p>
+    <div className="flex flex-col gap-3">
+      <p className="break-all text-name">{`${fileName} is a valid export`}</p>
+      <p className="text-small">{`Exported ${new Date(preview.exportedAt).toLocaleDateString(undefined, { dateStyle: "medium" })}.`}</p>
       {preview.rows.length > 0 ? (
-        <ul aria-label="Rows to import" className="flex flex-col gap-1 text-[15px]">
+        <ul aria-label="Rows to import" className="border-b border-rule">
           {preview.rows.map((r) => (
-            <li key={r.table} className="flex justify-between gap-3">
-              <span className="text-ink-dim">{r.label}</span>
-              <span className="font-medium text-ink">{count(r.count)}</span>
+            <li key={r.table} className="flex items-baseline justify-between gap-3 border-t border-rule py-2">
+              <span>{r.label}</span>
+              <span className="text-fig-24">{count(r.count)}</span>
             </li>
           ))}
         </ul>
       ) : (
-        <p className="text-[15px] text-ink-dim">This file has no rows to import.</p>
+        <p>This file has no rows to import.</p>
       )}
       {preview.skipped > 0 ? (
-        <p className="text-[15px] text-ink-faint">{`${count(preview.skipped)} rows are skipped: the shared exercise library, proposals and the activity log are not imported.`}</p>
+        <p className="text-why">{`${count(preview.skipped)} rows are skipped: the shared exercise library, proposals and the activity log are not imported.`}</p>
       ) : null}
       {preview.otherAccount ? (
-        <p className="rounded-control border border-ink-faint bg-raised p-3 text-[15px] text-ink">
+        <p className="border-l-2 border-ink pl-3 font-medium">
           This file was exported from a different account. Its rows will be added to this one.
         </p>
       ) : null}
-      <div className="flex gap-3">
+      <div className="bleed flex items-stretch">
         <Button variant="secondary" className="flex-1" onClick={onCancel}>
           Cancel
         </Button>

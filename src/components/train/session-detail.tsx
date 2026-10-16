@@ -6,24 +6,21 @@ import { useRouter } from "next/navigation";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { IconChevronRight } from "@/components/ui/icons";
+import { ListRow } from "@/components/ui/list-row";
+import { named } from "@/components/ui/name";
 import { Sheet } from "@/components/ui/sheet";
 import { useToast } from "@/components/ui/toast";
+import { ScreenBar } from "@/components/shell/screen-bar";
+import { SyncChip } from "@/components/shell/sync-chip";
 import { sessionMinutes } from "@/lib/analytics";
 import type { ProgressionDecision, Unit } from "@/lib/domain/types";
-import { SectionTitle } from "./bits";
-import {
-  ACTION_LABEL,
-  PROGRESS_ACTIONS,
-  countLabel,
-  formatDate,
-  formatDuration,
-  formatTime,
-} from "./format";
+import { BottomBand, SectionTitle } from "./bits";
+import { ACTION_LABEL, formatDate, formatDuration, formatTime } from "./format";
 import { useSessionData, type SessionData } from "./queries";
 import { deleteWorkout } from "./session-actions";
 import { groupSessionSets, nameLookup, nextTimeChanges } from "./session-model";
 import { ScreenSkeleton } from "./skeletons";
-import { describeSet, workSetsOf } from "./workout-model";
+import { setLine, workSetsOf } from "./workout-model";
 
 /**
  * One finished workout: what was done, and what the engine decided for next time.
@@ -43,7 +40,7 @@ function Missing({ text }: { text: string }) {
     <EmptyState
       title="Workout not found"
       action={
-        <ButtonLink href="/history" variant="primary" size="lg">
+        <ButtonLink href="/history" variant="primary" className="bleed">
           Back to history
         </ButtonLink>
       }
@@ -68,12 +65,11 @@ function Loaded({ data, variant }: { data: SessionData; variant: "finished" | "h
   const work = workSetsOf(sets).length;
   const title = day?.name ?? "Workout";
   const finished = variant === "finished";
-  const facts = [
-    minutes !== null ? formatDuration(minutes) : null,
-    countLabel(work, "work set"),
-    workout.session_rpe !== null ? `effort ${workout.session_rpe} of 10` : null,
-    equipment?.name ?? null,
-  ].filter(Boolean);
+  const facts: [string, string][] = [];
+  if (minutes !== null) facts.push(["Duration", formatDuration(minutes)]);
+  facts.push(["Work sets", String(work)]);
+  if (workout.session_rpe !== null) facts.push(["Effort", `${workout.session_rpe} of 10`]);
+  if (equipment?.name) facts.push(["Equipment", equipment.name]);
 
   const remove = async () => {
     setDeleting(true);
@@ -91,42 +87,58 @@ function Loaded({ data, variant }: { data: SessionData; variant: "finished" | "h
   const nextTime = decisions.length > 0 ? <NextTime decisions={decisions} unit={unit} nameOf={nameOf} /> : null;
 
   return (
-    <div className="flex flex-col gap-6 pb-4">
-      <header className="flex flex-col gap-1">
-        {finished ? null : (
-          <Link href="/history" className="-ml-2 flex min-h-11 w-fit items-center gap-0.5 px-2 text-[17px] text-ink-dim active:text-ink">
-            <IconChevronRight size={20} className="rotate-180" />
-            History
-          </Link>
-        )}
-        <h1 className="title-large">{finished ? "Workout complete" : title}</h1>
-        <p className="text-[17px] text-ink-dim">
+    <div className={finished ? "pb-[calc(var(--band-height)+env(safe-area-inset-bottom))]" : "pb-4"}>
+      {finished ? (
+        <ScreenBar start={<SyncChip />} />
+      ) : (
+        <ScreenBar
+          start={
+            <Link href="/history" className="-ml-2 inline-flex min-h-11 items-center gap-1 px-2 text-word active:underline">
+              <IconChevronRight size={18} className="rotate-180" />
+              History
+            </Link>
+          }
+          end={<SyncChip align="end" />}
+        />
+      )}
+
+      <header className="pb-3 pt-1">
+        <h1 className="text-head">{named(finished ? "Workout complete" : title)}</h1>
+        <p>
           {finished ? `${title}, ` : ""}
           {formatDate(workout.started_at)} at {formatTime(workout.started_at)}
         </p>
-        <p className="text-[15px] text-ink-dim">{facts.join(", ")}</p>
       </header>
+
+      <dl className="border-y border-rule py-2">
+        {facts.map(([label, value]) => (
+          <div key={label} className="grid grid-cols-[var(--label-col)_minmax(0,1fr)] gap-x-2 py-0.5">
+            <dt>{label}</dt>
+            <dd>{value}</dd>
+          </div>
+        ))}
+      </dl>
 
       {finished ? nextTime : null}
 
-      <section aria-label="Sets" className="flex flex-col gap-2">
+      <section aria-label="Sets">
         <SectionTitle>What you did</SectionTitle>
         {groups.length === 0 ? (
-          <p className="px-1 text-[17px] text-ink-dim">No sets were logged.</p>
+          <p className="border-t border-rule py-3">No sets were logged.</p>
         ) : (
-          <ul className="flex flex-col gap-3">
+          <ul className="border-t border-rule">
             {groups.map((group) => (
-              <li key={group.key} className="overflow-hidden rounded-card border border-line bg-surface">
-                <h3 className="px-4 pb-1 pt-3 text-[17px] font-semibold">{group.name}</h3>
+              <li key={group.key} className="border-b border-rule py-3">
+                <h3 className="pb-1 text-name">{named(group.name)}</h3>
                 <ol>
                   {group.sets.map(({ set, label }) => (
-                    <li key={set.id} className="flex items-baseline gap-3 border-t border-line px-4 py-2.5 first:border-t-0">
-                      <span className="w-16 shrink-0 text-[15px] text-ink-dim">{label}</span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block text-[17px]">{describeSet(set, unit)}</span>
-                        {set.notes ? <span className="block text-[15px] text-ink-dim">{set.notes}</span> : null}
+                    <li key={set.id} className="grid grid-cols-[var(--label-col)_minmax(0,1fr)_auto] items-baseline gap-x-2 py-0.5">
+                      <span>{label}</span>
+                      <span className="min-w-0">
+                        <span className="block">{setLine(set, unit)}</span>
+                        {set.notes ? <span className="block text-small">{set.notes}</span> : null}
                       </span>
-                      {set.pain ? <span className="shrink-0 text-[13px] font-semibold text-danger">Pain</span> : null}
+                      {set.pain ? <span className="text-small font-medium">Pain</span> : null}
                     </li>
                   ))}
                 </ol>
@@ -139,20 +151,22 @@ function Loaded({ data, variant }: { data: SessionData; variant: "finished" | "h
       {finished ? null : nextTime}
 
       {workout.notes ? (
-        <section aria-label="Notes" className="flex flex-col gap-2">
+        <section aria-label="Notes">
           <SectionTitle>Notes</SectionTitle>
-          <p className="whitespace-pre-wrap rounded-card border border-line bg-surface p-4 text-[17px]">{workout.notes}</p>
+          <p className="whitespace-pre-wrap border-y border-rule py-3">{workout.notes}</p>
         </section>
       ) : null}
 
       {finished ? (
-        <ButtonLink href="/today" variant="primary" size="lg" fullWidth>
-          Done
-        </ButtonLink>
+        <BottomBand>
+          <ButtonLink href="/today" variant="primary">
+            Done
+          </ButtonLink>
+        </BottomBand>
       ) : (
-        <Button variant="danger" fullWidth onClick={() => setConfirmOpen(true)}>
-          Delete workout
-        </Button>
+        <div className="mt-6 border-t border-rule">
+          <ListRow title="Delete workout" onClick={() => setConfirmOpen(true)} />
+        </div>
       )}
 
       <Sheet
@@ -160,22 +174,20 @@ function Loaded({ data, variant }: { data: SessionData; variant: "finished" | "h
         onClose={() => setConfirmOpen(false)}
         title="Delete this workout?"
         footer={
-          <div className="flex flex-col gap-3">
-            <Button variant="danger" fullWidth loading={deleting} onClick={() => void remove()}>
-              Delete workout
-            </Button>
-            <Button variant="secondary" fullWidth disabled={deleting} onClick={() => setConfirmOpen(false)}>
+          <div className="flex items-stretch">
+            <Button variant="secondary" size="lg" className="flex-1" disabled={deleting} onClick={() => setConfirmOpen(false)}>
               Keep it
+            </Button>
+            <Button variant="danger" className="flex-1" loading={deleting} onClick={() => void remove()}>
+              Delete workout
             </Button>
           </div>
         }
       >
         <div className="flex flex-col gap-3">
-          <p className="text-[17px] text-ink-dim">
-            The workout and its sets are removed from your history. Changes it already made to your plan stay.
-          </p>
+          <p>The workout and its sets are removed from your history. Changes it already made to your plan stay.</p>
           {deleteError ? (
-            <p role="alert" className="text-[15px] text-danger">
+            <p role="alert" className="font-medium">
               {deleteError}
             </p>
           ) : null}
@@ -195,30 +207,25 @@ function NextTime({
   nameOf: (id: string) => string;
 }) {
   return (
-    <section aria-label="Next time" className="flex flex-col gap-2">
+    <section aria-label="Next time">
       <SectionTitle>What changes next time</SectionTitle>
-      <ul className="overflow-hidden rounded-card border border-line bg-surface">
+      <ul className="border-t border-rule">
         {decisions.map((d) => {
           const changes = nextTimeChanges(d, unit, nameOf);
           const target = typeof d.inputs.target_reps === "number" && d.action === "increase_reps" ? d.inputs.target_reps : null;
           return (
-            <li key={d.id} className="flex flex-col gap-1 border-t border-line px-4 py-3 first:border-t-0">
-              <p className="text-[17px] font-semibold">{nameOf(d.before.exercise_id)}</p>
-              <p className="flex items-center gap-2 text-[15px] text-ink-dim">
-                {PROGRESS_ACTIONS.has(d.action) ? (
-                  <span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full bg-ember" />
-                ) : null}
-                {ACTION_LABEL[d.action]}
-              </p>
-              <p className="text-[17px]">{d.reason}</p>
+            <li key={d.id} className="border-b border-rule py-3">
+              <h3 className="text-name">{named(nameOf(d.before.exercise_id))}</h3>
+              <p>{ACTION_LABEL[d.action]}</p>
+              <p className="pt-1 text-why">{d.reason}</p>
               {changes.length > 0 ? (
-                <ul className="text-[15px] text-ink-dim">
+                <ul className="pt-1 text-small">
                   {changes.map((line) => (
                     <li key={line}>{line}</li>
                   ))}
                 </ul>
               ) : target !== null ? (
-                <p className="text-[15px] text-ink-dim">Target: {target} reps on every set.</p>
+                <p className="pt-1 text-small">Target: {target} reps on every set.</p>
               ) : null}
             </li>
           );

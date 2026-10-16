@@ -6,40 +6,6 @@ export function linear(domain: readonly [number, number], range: readonly [numbe
   return (v) => r0 + ((v - d0) / (d1 - d0)) * (r1 - r0);
 }
 
-// Steps of 1, 2 or 5 times a power of ten read as round numbers on an axis.
-function niceStep(rough: number): number {
-  const power = 10 ** Math.floor(Math.log10(rough));
-  const f = rough / power;
-  const nice = f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10;
-  return nice * power;
-}
-
-const clean = (n: number): number => Number(n.toFixed(10));
-
-export interface Ticks {
-  ticks: number[];
-  /** Axis bounds, widened to the first and last tick. */
-  min: number;
-  max: number;
-}
-
-/** Round tick values covering [min, max]. A flat series gets a band around it so the line is not pinned to an edge. */
-export function niceTicks(min: number, max: number, target = 4): Ticks {
-  let lo = min;
-  let hi = max;
-  if (lo === hi) {
-    const pad = Math.max(1, Math.abs(lo) * 0.1);
-    lo -= pad;
-    hi += pad;
-  }
-  const step = niceStep((hi - lo) / target);
-  const start = clean(Math.floor(lo / step) * step);
-  const end = clean(Math.ceil(hi / step) * step);
-  const ticks: number[] = [];
-  for (let v = start; v <= end + step / 2; v += step) ticks.push(clean(v));
-  return { ticks, min: start, max: end };
-}
-
 /** Index of the entry in `xs` closest to `x`. `xs` must be sorted ascending and not empty. */
 export function nearestIndex(xs: readonly number[], x: number): number {
   let best = 0;
@@ -55,3 +21,17 @@ export function nearestIndex(xs: readonly number[], x: number): number {
 }
 
 export const clamp = (n: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, n));
+
+/**
+ * Which entries of `xs` (sorted pixel positions) can carry a label without two labels closer than `gap`.
+ * Counts back from the last entry, which always has one. `keep` is an entry that must have one, such as the
+ * selected point; labels too close to it are dropped.
+ */
+export function labelIndices(xs: readonly number[], gap: number, keep?: number): Set<number> {
+  const out: number[] = [];
+  for (let i = xs.length - 1; i >= 0; i--) {
+    if (out.length === 0 || Math.abs(xs[i] - xs[out[out.length - 1]]) >= gap) out.push(i);
+  }
+  if (keep === undefined || out.includes(keep)) return new Set(out);
+  return new Set([...out.filter((i) => Math.abs(xs[i] - xs[keep]) >= gap), keep]);
+}

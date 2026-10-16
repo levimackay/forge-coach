@@ -3,11 +3,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { getSupabase } from "@/lib/supabase/client";
 import { devFixtureActive } from "@/lib/local/session";
-import { Button, Sheet, useToast } from "@/components/ui";
+import { Button, IconChevronRight, Sheet, named, useToast } from "@/components/ui";
 import { copyText } from "./browser-actions";
 import { splitGrants, toGrants, type Grant, type GrantLookup } from "./connection";
 import { dateText } from "./format";
-import { Panel } from "./section";
 import { Steps } from "./steps";
 import { useNowIso, useOnline } from "./use-now";
 
@@ -71,41 +70,49 @@ export function ConnectPanel() {
     }
   };
 
+  const connected = split !== null && split.claude.length > 0;
+
   return (
     <div className="flex flex-col gap-4">
-      <Panel className="flex flex-col gap-3">
+      <div className="border-b border-rule">
         <StatusLine online={online} result={result} split={split} nowIso={nowIso} />
-        {split && split.claude.length > 0 ? (
-          <>
-            <p className="text-[15px] text-ink-dim">
-              Claude can read your training data and propose program changes. It cannot approve them. You approve every change in
-              this tab.
+        {connected ? (
+          <div className="grid grid-cols-[var(--label-col)_minmax(0,1fr)] border-t border-rule py-3">
+            <span>Access</span>
+            <p className="text-why">
+              Claude can read your training data and propose program changes. It cannot approve them. You approve every change in this
+              tab.
             </p>
-            <Button variant="danger" disabled={!online || revoking} loading={revoking} onClick={() => setConfirming(true)}>
+          </div>
+        ) : null}
+      </div>
+      {connected || result ? (
+        <div className="flex flex-wrap items-center">
+          {connected ? (
+            <Button variant="secondary" className="-ml-4" disabled={!online || revoking} loading={revoking} onClick={() => setConfirming(true)}>
               Disconnect Claude
             </Button>
-          </>
-        ) : null}
-        {result ? (
-          <Button variant="ghost" size="sm" className="self-start" disabled={!online} onClick={recheck}>
-            Check again
-          </Button>
-        ) : null}
-      </Panel>
+          ) : null}
+          {result ? (
+            <Button variant="ghost" size="sm" className={connected ? "" : "-ml-2"} disabled={!online} onClick={recheck}>
+              Check again
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
 
-      {split && split.claude.length > 0 ? (
-        <details className="rounded-card border border-line bg-surface">
-          <summary className="flex min-h-14 cursor-pointer list-none items-center px-4 text-[17px] font-medium [&::-webkit-details-marker]:hidden">
+      {connected ? (
+        <details className="group border-y border-rule">
+          <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between [&::-webkit-details-marker]:hidden">
             Setup steps
+            <IconChevronRight size={20} className="transition-transform group-open:rotate-90" />
           </summary>
-          <div className="px-4 pb-4">
+          <div className="pb-4">
             <SetupSteps />
           </div>
         </details>
       ) : (
-        <Panel>
-          <SetupSteps />
-        </Panel>
+        <SetupSteps />
       )}
 
       <Sheet
@@ -113,7 +120,7 @@ export function ConnectPanel() {
         onClose={() => setConfirming(false)}
         title="Disconnect Claude?"
         footer={
-          <div className="flex gap-3">
+          <div className="flex items-stretch">
             <Button variant="secondary" className="flex-1" onClick={() => setConfirming(false)}>
               Stay connected
             </Button>
@@ -123,9 +130,11 @@ export function ConnectPanel() {
           </div>
         }
       >
-        <div className="flex flex-col gap-3 text-[17px] text-ink-dim">
+        <div className="flex flex-col gap-3">
           <p>Claude will lose access to your training data and can no longer propose changes.</p>
-          <p>A sign-in Claude already holds may keep working for up to an hour before it expires. Proposals already waiting stay in this tab.</p>
+          <p className="text-why">
+            A sign-in Claude already holds may keep working for up to an hour before it expires. Proposals already waiting stay in this tab.
+          </p>
         </div>
       </Sheet>
     </div>
@@ -135,8 +144,8 @@ export function ConnectPanel() {
 function SetupSteps() {
   return (
     <div className="flex flex-col gap-4">
-      <h3 className="title">Connect Claude</h3>
-      <p className="text-[15px] text-ink-dim">
+      <h3 className="text-name">{named("Connect Claude")}</h3>
+      <p className="text-why">
         Claude can then read your sessions and suggest program changes, which appear above for you to approve. Connect it once on a
         computer; after that it works in the Claude app on your iPhone.
       </p>
@@ -154,7 +163,7 @@ function SetupSteps() {
         <p>Choose Connect. Claude opens the FORGE sign-in page. Sign in with your FORGE account and approve what Claude can do.</p>
         <p>Open the Claude app on your iPhone, start a chat and switch the FORGE connector on for it. Then ask about your training.</p>
       </Steps>
-      <p className="border-t border-line pt-3 text-[15px] text-ink-faint">
+      <p className="text-why">
         This page only says Claude is connected after Supabase lists a grant for it. If a step fails, remove the connector in Claude and
         add it again; its sign-in settings cannot be edited.
       </p>
@@ -196,9 +205,12 @@ function StatusLine({
   }
 
   return (
-    <div role="status" className="flex flex-col gap-1">
-      <h3 className="title">{title}</h3>
-      {detail ? <p className="text-[15px] text-ink-dim">{detail}</p> : null}
+    <div role="status" className="grid grid-cols-[var(--label-col)_minmax(0,1fr)] border-t border-rule py-3">
+      <span>Status</span>
+      <div className="flex flex-col gap-1">
+        <p>{title}</p>
+        {detail ? <p className="text-why">{detail}</p> : null}
+      </div>
     </div>
   );
 }
@@ -206,16 +218,16 @@ function StatusLine({
 function CopyField({ label, value, missing }: { label: string; value: string | undefined; missing: string }) {
   const { toast } = useToast();
   if (!value) {
-    return <p className="rounded-control border border-line bg-raised p-3 text-[15px] text-ink-dim [overflow-wrap:anywhere]">{missing}</p>;
+    return <p className="border-y border-rule py-3 text-why [overflow-wrap:anywhere]">{missing}</p>;
   }
   return (
-    <div className="flex flex-col gap-2 rounded-control border border-line bg-raised p-3">
-      <p className="text-[13px] text-ink-faint">{label}</p>
-      <p className="break-all font-mono text-[15px] text-ink">{value}</p>
+    <div className="flex flex-col gap-1 border-y border-rule py-3">
+      <p className="text-small">{label}</p>
+      <p className="break-all">{value}</p>
       <Button
         variant="secondary"
         size="sm"
-        className="self-start"
+        className="-ml-4 self-start"
         onClick={async () => toast((await copyText(value)) ? `${label} copied.` : "Could not copy. Select the text and copy it by hand.", { tone: "neutral" })}
       >
         {`Copy ${label.toLowerCase()}`}

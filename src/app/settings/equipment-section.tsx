@@ -3,8 +3,7 @@
 import { useState, type FormEvent } from "react";
 import type { EquipmentCode, EquipmentProfile, Unit } from "@/lib/domain/types";
 import { Section } from "@/components/coach/section";
-import { WrapList } from "@/components/coach/wrap-row";
-import { Button, EmptyState, Field, Sheet, Skeleton, useToast } from "@/components/ui";
+import { Button, EmptyState, Field, IconPlus, ListGroup, ListRow, Sheet, Skeleton, useToast } from "@/components/ui";
 import { putRow, putRows, softDelete, useEquipmentProfiles, useProfile } from "@/lib/local";
 import { getDb } from "@/lib/local/db";
 import {
@@ -14,6 +13,7 @@ import {
   parseDraft,
   type EquipmentDraft,
 } from "./equipment-form";
+import { CheckField } from "./check-field";
 
 function summary(p: EquipmentProfile): string {
   const kit = p.equipment.filter((c): c is Exclude<EquipmentCode, "bodyweight"> => c in EQUIPMENT_OPTIONS).map((c) => EQUIPMENT_OPTIONS[c]);
@@ -28,24 +28,21 @@ export function EquipmentSection() {
 
   return (
     <Section title="Equipment" description="What you can train with. Days can use a profile so a hotel gym swaps in the right exercises.">
-      {profiles === undefined ? (
-        <Skeleton className="h-32 w-full" />
-      ) : profiles.length === 0 ? (
-        <EmptyState title="No equipment profiles">Add one so your program only uses kit you have.</EmptyState>
-      ) : (
-        <WrapList
-          label="Equipment profiles"
-          rows={profiles.map((p) => ({
-            key: p.id,
-            title: p.name,
-            subtitle: `${p.is_default ? "Default. " : ""}${summary(p)}`,
-            onClick: () => setEditing(p),
-          }))}
-        />
-      )}
-      <Button variant="secondary" disabled={profiles === undefined} onClick={() => setEditing("new")}>
-        Add equipment profile
-      </Button>
+      {profiles === undefined ? <Skeleton rows={2} /> : null}
+      {profiles?.length === 0 ? <EmptyState title="No equipment profiles">Add one so your program only uses kit you have.</EmptyState> : null}
+      <ListGroup label="Equipment profiles" className="border-t border-rule">
+        {profiles?.map((p) => (
+          <ListRow
+            key={p.id}
+            title={p.name}
+            subtitle={summary(p)}
+            trailing={p.is_default ? "Default" : undefined}
+            chevron
+            onClick={() => setEditing(p)}
+          />
+        ))}
+        <ListRow title="Add equipment profile" trailing={<IconPlus size={20} />} disabled={profiles === undefined} onClick={() => setEditing("new")} />
+      </ListGroup>
 
       <Sheet open={editing !== null} onClose={() => setEditing(null)} title={editing === "new" ? "New equipment profile" : "Edit equipment profile"}>
         {editing !== null && profiles ? (
@@ -123,23 +120,17 @@ function EquipmentForm({
   };
 
   return (
-    <form onSubmit={save} className="flex flex-col gap-5 pb-2" noValidate>
+    <form onSubmit={save} className="flex flex-col gap-5" noValidate>
       <Field label="Name" value={draft.name} error={errors.name} maxLength={60} onChange={(e) => set("name", e.target.value)} />
 
-      <fieldset className="flex flex-col gap-1">
-        <legend className="mb-1 text-[15px] font-medium text-ink-dim">What you have</legend>
+      <fieldset className="flex flex-col">
+        <legend className="mb-1">What you have</legend>
         {EQUIPMENT_CODES.map((code) => (
-          <label key={code} className="flex min-h-11 items-center gap-3 text-[17px]">
-            <input
-              type="checkbox"
-              checked={draft.equipment.includes(code)}
-              onChange={() => toggle(code)}
-              className="h-6 w-6 shrink-0 accent-ember"
-            />
+          <CheckField key={code} checked={draft.equipment.includes(code)} onChange={() => toggle(code)}>
             {EQUIPMENT_OPTIONS[code]}
-          </label>
+          </CheckField>
         ))}
-        <p className="text-[15px] text-ink-faint">Bodyweight exercises are always available.</p>
+        <p className="mt-1 text-small">Bodyweight exercises are always available.</p>
       </fieldset>
 
       {draft.equipment.includes("dumbbells") ? (
@@ -176,51 +167,38 @@ function EquipmentForm({
         />
       ) : null}
 
-      <label className="flex min-h-11 items-start gap-3 text-[17px]">
-        <input
-          type="checkbox"
-          checked={draft.isDefault}
-          disabled={mustBeDefault}
-          onChange={(e) => set("isDefault", e.target.checked)}
-          className="mt-0.5 h-6 w-6 shrink-0 accent-ember"
-        />
-        <span className="flex flex-col">
-          Use by default
-          {mustBeDefault ? (
-            <span className="text-[15px] text-ink-faint">
-              {others.length === 0 ? "This is your only profile." : "Make another profile the default to change this."}
-            </span>
-          ) : null}
-        </span>
-      </label>
+      <CheckField
+        checked={draft.isDefault}
+        disabled={mustBeDefault}
+        onChange={(on) => set("isDefault", on)}
+        hint={mustBeDefault ? (others.length === 0 ? "This is your only profile." : "Make another profile the default to change this.") : undefined}
+      >
+        Use by default
+      </CheckField>
 
-      <Button type="submit" variant="primary" size="lg" loading={busy}>
+      <Button type="submit" variant="primary" className="bleed" loading={busy}>
         Save
       </Button>
 
       {existing ? (
         confirmDelete ? (
-          <div className="flex flex-col gap-3 rounded-control border border-line bg-raised p-3">
-            <p className="text-[15px] text-ink-dim">
-              Days that use this profile go back to any equipment. Past workouts keep their history.
-            </p>
-            <div className="flex gap-3">
+          <div className="flex flex-col gap-3 border-t border-rule pt-3">
+            <p className="text-why">Days that use this profile go back to any equipment. Past workouts keep their history.</p>
+            <div className="bleed flex items-stretch">
               <Button variant="secondary" className="flex-1" onClick={() => setConfirmDelete(false)}>
                 Keep it
               </Button>
-              <Button variant="danger" className="flex-1" disabled={busy} onClick={() => void remove()}>
+              <Button variant="primary" className="flex-1" disabled={busy} onClick={() => void remove()}>
                 Delete
               </Button>
             </div>
           </div>
         ) : (
           <>
-            <Button variant="danger" disabled={existing.is_default || busy} onClick={() => setConfirmDelete(true)}>
+            <Button variant="secondary" disabled={existing.is_default || busy} onClick={() => setConfirmDelete(true)}>
               Delete profile
             </Button>
-            {existing.is_default ? (
-              <p className="-mt-3 text-[15px] text-ink-faint">Make another profile the default before you delete this one.</p>
-            ) : null}
+            {existing.is_default ? <p className="-mt-3 text-why">Make another profile the default before you delete this one.</p> : null}
           </>
         )
       ) : null}

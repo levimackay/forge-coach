@@ -1,18 +1,21 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button, ButtonLink } from "@/components/ui/button";
-import { Notice } from "./bits";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Field } from "@/components/ui/field";
-import { IconChevronRight } from "@/components/ui/icons";
+import { ListRow } from "@/components/ui/list-row";
+import { named } from "@/components/ui/name";
 import { NumberStepper } from "@/components/ui/number-stepper";
 import { Sheet } from "@/components/ui/sheet";
+import { ScreenBar } from "@/components/shell/screen-bar";
+import { SyncChip } from "@/components/shell/sync-chip";
 import { completeWorkout, useWorkoutSets } from "@/lib/local";
 import type { Exercise, WorkoutSet } from "@/lib/domain/types";
-import { ExerciseCard, type Slot } from "./exercise-card";
+import { BottomBand, Notice } from "./bits";
+import { ExerciseNav } from "./exercise-nav";
+import { ExercisePanel, type Slot } from "./exercise-panel";
 import { countLabel, formatDuration } from "./format";
 import {
   buildPlan,
@@ -23,7 +26,7 @@ import {
   type PlanContext,
   type WorkoutData,
 } from "./queries";
-import { RestBar, loadRest, saveRest, type RestState } from "./rest-bar";
+import { RestClock, RestControls, SessionClock, loadRest, saveRest, type RestState } from "./rest-bar";
 import { SessionDetail } from "./session-detail";
 import { discardWorkout, removeSet, restoreSet, saveSetEdit, type SetEdit } from "./session-actions";
 import { SetEditSheet, SwapSheet } from "./set-sheets";
@@ -130,17 +133,16 @@ function Logger({ data, sets }: { data: WorkoutData & { ctx: PlanContext }; sets
     [plan, byPlanned, swaps, libraryById],
   );
 
-  // Until the lifter picks a card, the first exercise with sets left is open.
+  // Until the lifter picks an exercise, the first one with sets left is the current one.
   const [picked, setPicked] = useState<string | null | undefined>(undefined);
+  const [listOpen, setListOpen] = useState(false);
   const firstOpen = firstOpenIndex(slots.map((s) => ({ workSets: s.workSets, target: s.item.prescription.sets })));
   const openId = picked === undefined ? (slots[firstOpen]?.item.planned.id ?? null) : picked;
+  const current = slots.find((s) => s.item.planned.id === openId) ?? null;
 
-  const scrolled = useRef<string | null | undefined>(undefined);
   useEffect(() => {
-    if (picked !== undefined && picked !== scrolled.current && picked !== null) {
-      document.getElementById(`exercise-${picked}`)?.scrollIntoView({ block: "start" });
-    }
-    scrolled.current = picked;
+    // A new exercise starts at the top, under the clock.
+    if (picked) window.scrollTo({ top: 0 });
   }, [picked]);
 
   const [rest, setRest] = useState<RestState | null>(() => loadRest(workout.id));
@@ -227,28 +229,38 @@ function Logger({ data, sets }: { data: WorkoutData & { ctx: PlanContext }; sets
   const untrained = slots.filter((s) => s.workSets === 0).map((s) => s.exercise.name);
   const editingExercise = editing ? libraryById.get(editing.set.exercise_id) : undefined;
 
+  const entryTail = (
+    <>
+      {rest ? <RestControls rest={rest} onChange={changeRest} /> : null}
+      <ExerciseNav
+        slots={slots}
+        currentId={current?.item.planned.id ?? null}
+        open={listOpen}
+        ruled={!rest}
+        onToggle={() => setListOpen(!listOpen)}
+        onPick={(id) => {
+          setPicked(id);
+          setListOpen(false);
+        }}
+      />
+    </>
+  );
+
   return (
-    <div className={`flex flex-col gap-4 ${rest ? "pb-28" : "pb-4"}`}>
-      <header className="flex flex-col gap-1">
-        <div className="flex items-center justify-between">
-          <Link href="/today" className="-ml-2 flex min-h-11 items-center gap-0.5 px-2 text-[17px] text-ink-dim active:text-ink">
-            <IconChevronRight size={20} className="rotate-180" />
-            Today
-          </Link>
-          <Button variant="secondary" size="sm" disabled={totals.workSets === 0} onClick={() => setFinishOpen(true)}>
-            Finish
-          </Button>
+    <div className="pb-[calc(var(--live-band-height)+env(safe-area-inset-bottom))]">
+      <header className="bleed sticky top-0 z-20 bg-ground">
+        <div className="px-safe">
+          <ScreenBar start={<span className="text-name">{named(ctx.day.name)}</span>} end={<SyncChip align="end" />} />
         </div>
-        <h1 className="title-large">{ctx.day.name}</h1>
-        <p className="text-[15px] text-ink-dim">
-          {[equipment?.name, minutes === null ? null : formatDuration(minutes), countLabel(totals.workSets, "set")]
-            .filter(Boolean)
-            .join(", ")}
-        </p>
+        {rest ? (
+          <RestClock rest={rest} onChange={changeRest} next={current ? `Set ${current.workSets + 1} next` : ""} />
+        ) : (
+          <SessionClock minutes={minutes} sets={`${countLabel(totals.workSets, "set")} done`} />
+        )}
       </header>
 
       {undo ? (
-        <div role="status">
+        <div role="status" className="mt-3">
           <Notice
             action={
               <Button
@@ -279,50 +291,42 @@ function Logger({ data, sets }: { data: WorkoutData & { ctx: PlanContext }; sets
         >
           Add exercises to this day in Program, then come back.
         </EmptyState>
+      ) : current ? (
+        <ExercisePanel
+          key={current.item.planned.id}
+          slot={current}
+          note={itemNote(current.item, ctx.lastDecisions[current.item.planned.id])}
+          workout={workout}
+          libraryById={libraryById}
+          equipment={equipment}
+          unit={ctx.unit}
+          onLogged={(set) => handleLogged(current, set)}
+          onEdit={(set, number) => setEditing({ set, number })}
+          onSwap={() => setSwapping(current)}
+          tail={entryTail}
+        />
       ) : (
-        <ol className="flex flex-col gap-3">
-          {slots.map((slot) => (
-            <ExerciseCard
-              key={slot.item.planned.id}
-              slot={slot}
-              note={itemNote(slot.item, ctx.lastDecisions[slot.item.planned.id])}
-              workout={workout}
-              libraryById={libraryById}
-              equipment={equipment}
-              unit={ctx.unit}
-              open={openId === slot.item.planned.id}
-              onToggle={() => setPicked(openId === slot.item.planned.id ? null : slot.item.planned.id)}
-              onLogged={(set) => handleLogged(slot, set)}
-              onEdit={(set, number) => setEditing({ set, number })}
-              onSwap={() => setSwapping(slot)}
-            />
-          ))}
-        </ol>
+        entryTail
       )}
 
-      <div className="flex flex-col gap-3 pt-2">
-        <Button
-          variant={allDone ? "primary" : "secondary"}
-          size="lg"
-          fullWidth
-          disabled={totals.workSets === 0}
-          onClick={() => setFinishOpen(true)}
-        >
-          Finish workout
-        </Button>
-        {totals.workSets === 0 ? (
-          <p className="text-center text-[15px] text-ink-dim">Log at least one set to finish.</p>
-        ) : null}
-        <Button variant="ghost" fullWidth onClick={() => setDiscardOpen(true)}>
-          Discard workout
-        </Button>
+      <div className="pt-6">
+        <ListRow title="Finish workout" onClick={() => setFinishOpen(true)} disabled={totals.workSets === 0} chevron />
+        {totals.workSets === 0 ? <p className="py-3">Log at least one set to finish.</p> : null}
+        <ListRow title="Back to Today" href="/today" />
+        <ListRow title="Discard workout" onClick={() => setDiscardOpen(true)} />
       </div>
 
       <p role="status" className="sr-only">
         {announcement}
       </p>
 
-      {rest ? <RestBar rest={rest} onChange={changeRest} /> : null}
+      {allDone && current === null ? (
+        <BottomBand>
+          <Button variant="primary" disabled={totals.workSets === 0} onClick={() => setFinishOpen(true)}>
+            Finish workout
+          </Button>
+        </BottomBand>
+      ) : null}
 
       <SetEditSheet
         set={editing?.set ?? null}
@@ -359,24 +363,24 @@ function Logger({ data, sets }: { data: WorkoutData & { ctx: PlanContext }; sets
         onClose={() => setDiscardOpen(false)}
         title="Discard this workout?"
         footer={
-          <div className="flex flex-col gap-3">
-            <Button variant="danger" fullWidth onClick={() => void discard()}>
-              Discard workout
-            </Button>
-            <Button variant="secondary" fullWidth onClick={() => setDiscardOpen(false)}>
+          <div className="flex items-stretch">
+            <Button variant="secondary" size="lg" className="flex-1" onClick={() => setDiscardOpen(false)}>
               Keep logging
+            </Button>
+            <Button variant="danger" className="flex-1" onClick={() => void discard()}>
+              Discard workout
             </Button>
           </div>
         }
       >
         <div className="flex flex-col gap-3">
-          <p className="text-[17px] text-ink-dim">
+          <p>
             {totals.workSets > 0
               ? `The ${countLabel(totals.workSets, "set")} you logged will not count toward your progress or change your plan.`
               : "Nothing has been logged yet."}
           </p>
           {discardError ? (
-            <p role="alert" className="text-[15px] text-danger">
+            <p role="alert" className="font-medium">
               {discardError}
             </p>
           ) : null}
@@ -425,27 +429,34 @@ function FinishSheet({
       onClose={onClose}
       title="Finish workout"
       footer={
-        <Button variant="primary" size="lg" fullWidth loading={busy} onClick={() => void submit()}>
-          Finish and update my plan
-        </Button>
+        <>
+          {error ? (
+            <p role="alert" className="border-b border-rule px-safe py-3 font-medium">
+              {error}
+            </p>
+          ) : null}
+          <Button variant="primary" className="w-full" loading={busy} onClick={() => void submit()}>
+            Finish and update my plan
+          </Button>
+        </>
       }
     >
       <div className="flex flex-col gap-5 pb-2">
-        <p className="text-[17px] text-ink-dim">
+        <p>
           {countLabel(exercises, "exercise")}, {countLabel(workSets, "work set")}
           {minutes !== null ? `, ${formatDuration(minutes)}` : ""}.
         </p>
-        {untrained.length > 0 ? (
-          <p className="text-[15px] text-ink-dim">Not trained, so unchanged: {untrained.join(", ")}.</p>
-        ) : null}
-        <NumberStepper
-          label="Session effort (RPE)"
-          value={rpe}
-          min={1}
-          max={10}
-          hint="How hard the whole session felt, from 1 (easy) to 10 (all out). Optional."
-          onChange={setRpe}
-        />
+        {untrained.length > 0 ? <p>Not trained, so unchanged: {untrained.join(", ")}.</p> : null}
+        <div>
+          <NumberStepper
+            label="Session effort (RPE)"
+            value={rpe}
+            min={1}
+            max={10}
+            hint="How hard the whole session felt, from 1 (easy) to 10 (all out). Optional."
+            onChange={setRpe}
+          />
+        </div>
         <Field
           label="Notes (optional)"
           multiline
@@ -454,11 +465,6 @@ function FinishSheet({
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
         />
-        {error ? (
-          <p role="alert" className="text-[15px] text-danger">
-            {error}
-          </p>
-        ) : null}
       </div>
     </Sheet>
   );

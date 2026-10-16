@@ -9,6 +9,8 @@ import { parseNumber } from "@/components/ui/number-math";
 import { NumberStepper } from "@/components/ui/number-stepper";
 import { Segmented } from "@/components/ui/segmented";
 import { useToast } from "@/components/ui/toast";
+import { ScreenBar } from "@/components/shell/screen-bar";
+import { SyncChip } from "@/components/shell/sync-chip";
 import { useBodyMeasurements, useLive, useProfile, useRecoveryLogs } from "@/lib/local";
 import type { BodyMeasurement, IsoDate, RecoveryLog, Unit } from "@/lib/domain/types";
 import { RatingRow, ScreenTitle, SectionTitle } from "./bits";
@@ -43,17 +45,21 @@ export function LogScreen() {
   const unit: Unit = profile?.unit ?? "lb";
 
   return (
-    <div className="flex flex-col gap-6 pb-4">
-      <ScreenTitle title="Log">How you slept and recovered, and your body measurements.</ScreenTitle>
-      <Segmented
-        label="What to log"
-        value={tab}
-        onChange={setTab}
-        options={[
-          { value: "recovery", label: "Recovery" },
-          { value: "body", label: "Body" },
-        ]}
-      />
+    <div className="flex flex-col gap-6 pb-[var(--band-height)]">
+      <div>
+        <ScreenBar start={<SyncChip />} />
+        <ScreenTitle title="Log" />
+        <Segmented
+          label="What to log"
+          className="-ml-2.5"
+          value={tab}
+          onChange={setTab}
+          options={[
+            { value: "recovery", label: "Recovery" },
+            { value: "body", label: "Body" },
+          ]}
+        />
+      </div>
       <Field
         label="Date"
         type="date"
@@ -81,9 +87,9 @@ function RecoveryTab({ date, onPickDate }: { date: IsoDate; onPickDate: (d: IsoD
     <>
       <RecoveryForm key={`${date}:${existing?.id ?? "new"}`} date={date} existing={existing} />
       {recent && recent.length > 0 ? (
-        <section className="flex flex-col gap-2">
+        <section>
           <SectionTitle>Recent check-ins</SectionTitle>
-          <ListGroup label="Recent check-ins">
+          <ListGroup label="Recent check-ins" className="border-t border-rule">
             {recent.slice(0, 10).map((log) => (
               <ListRow
                 key={log.id}
@@ -134,25 +140,28 @@ function RecoveryForm({ date, existing }: { date: IsoDate; existing: RecoveryLog
 
   return (
     <section aria-label="Recovery check-in" className="flex flex-col gap-5">
-      <NumberStepper
-        label="Sleep last night"
-        unit="h"
-        value={values.sleep_hours}
-        step={0.5}
-        min={0}
-        max={24}
-        onChange={(sleep_hours) => setValues({ ...values, sleep_hours })}
-      />
-      {RATINGS.map(({ key, label, low, high }) => (
-        <RatingRow
-          key={key}
-          label={label}
-          low={low}
-          high={high}
-          value={values[key]}
-          onChange={(next) => setValues({ ...values, [key]: next })}
+      <div>
+        <NumberStepper
+          label="Sleep last night"
+          unit="h"
+          value={values.sleep_hours}
+          step={0.5}
+          min={0}
+          max={24}
+          onChange={(sleep_hours) => setValues({ ...values, sleep_hours })}
         />
-      ))}
+        {RATINGS.map(({ key, label, low, high }) => (
+          <RatingRow
+            key={key}
+            label={label}
+            low={low}
+            high={high}
+            value={values[key]}
+            onChange={(next) => setValues({ ...values, [key]: next })}
+          />
+        ))}
+        <div className="border-t border-rule" />
+      </div>
       <Field
         label="Note (optional)"
         multiline
@@ -162,11 +171,11 @@ function RecoveryForm({ date, existing }: { date: IsoDate; existing: RecoveryLog
         onChange={(e) => setValues({ ...values, notes: e.target.value })}
       />
       {error ? (
-        <p role="alert" className="text-[15px] text-danger">
+        <p role="alert" className="font-medium">
           {error}
         </p>
       ) : null}
-      <Button variant="primary" size="lg" fullWidth loading={busy} onClick={() => void save()}>
+      <Button variant="primary" pinned="tabs" loading={busy} onClick={() => void save()}>
         {existing ? "Update check-in" : "Save check-in"}
       </Button>
     </section>
@@ -183,9 +192,9 @@ function BodyTab({ date, unit, onPickDate }: { date: IsoDate; unit: Unit; onPick
     <>
       <BodyForm key={`${date}:${existing?.id ?? "new"}`} date={date} unit={unit} existing={existing} latest={latest} />
       {all.length > 0 ? (
-        <section className="flex flex-col gap-2">
+        <section>
           <SectionTitle>Recent measurements</SectionTitle>
-          <ListGroup label="Recent measurements">
+          <ListGroup label="Recent measurements" className="border-t border-rule">
             {all.slice(0, 8).map((m) => (
               <ListRow
                 key={m.id}
@@ -302,7 +311,7 @@ function BodyForm({
         })}
       </div>
       {latest ? (
-        <p className="text-[15px] text-ink-dim">The faint numbers are from your entry on {formatDay(latest.measured_on)}.</p>
+        <p>The grey numbers are from your entry on {formatDay(latest.measured_on)}.</p>
       ) : null}
       <Field
         label="Note (optional)"
@@ -313,11 +322,11 @@ function BodyForm({
         onChange={(e) => setText({ ...text, notes: e.target.value })}
       />
       {error ? (
-        <p role="alert" className="text-[15px] text-danger">
+        <p role="alert" className="font-medium">
           {error}
         </p>
       ) : null}
-      <Button variant="primary" size="lg" fullWidth loading={busy} onClick={() => void save()}>
+      <Button variant="primary" pinned="tabs" loading={busy} onClick={() => void save()}>
         {existing ? "Update measurements" : "Save measurements"}
       </Button>
     </section>

@@ -1,46 +1,64 @@
 import type { ReactNode } from "react";
+import { named } from "@/components/ui/name";
 
+/** A screen's page name, with its period. Anything under it is body text in ink. */
 export function ScreenTitle({ title, children }: { title: string; children?: ReactNode }) {
   return (
-    <header className="flex flex-col gap-1 pb-2 pt-1">
-      <h1 className="title-large">{title}</h1>
-      {children ? <div className="text-[17px] text-ink-dim">{children}</div> : null}
+    <header className="flex flex-col gap-1 pb-3 pt-1">
+      <h1 className="text-head">{named(title)}</h1>
+      {children ? <div className="text-body">{children}</div> : null}
     </header>
   );
 }
 
-export function SectionTitle({ children, action }: { children: ReactNode; action?: ReactNode }) {
+/** A section name, with its period, and an optional value or action at the right edge. */
+export function SectionTitle({ children, aside }: { children: string; aside?: ReactNode }) {
   return (
-    <div className="flex min-h-11 items-center justify-between gap-3 px-1">
-      <h2 className="text-[15px] font-semibold text-ink-dim">{children}</h2>
-      {action}
+    <div className="flex min-h-11 items-baseline justify-between gap-3 pb-2 pt-4">
+      <h2 className="min-w-0 text-name">{named(children)}</h2>
+      {aside ? <div className="shrink-0 text-body">{aside}</div> : null}
     </div>
   );
 }
 
-/** A toggle button for picking several things from a short list. */
+/**
+ * A number set light with its unit beside it, as on the Today plan and the Log set weight.
+ * Sizes are the figure steps in the type scale.
+ */
+const FIGURE_SIZE = { 24: "text-fig-24", 32: "text-fig-32", 48: "text-fig-48" } as const;
+
+export function Figure({ value, unit, size = 32 }: { value: string; unit?: string; size?: keyof typeof FIGURE_SIZE }) {
+  return (
+    <span className="inline-flex shrink-0 items-baseline whitespace-nowrap">
+      <span className={FIGURE_SIZE[size]}>{value}</span>
+      {unit ? <span className="ml-1 text-body">{unit}</span> : null}
+    </span>
+  );
+}
+
+/**
+ * A toggle for picking several things from a short list. The chosen ones are ink and underlined,
+ * the rest grey, the same as a word switch. Put them in a row with `-mx-2.5` to line the text up with the gutter.
+ */
 export function Chip({
   selected,
   onClick,
   children,
-  tone = "neutral",
   disabled,
 }: {
   selected: boolean;
   onClick: () => void;
   children: ReactNode;
-  tone?: "neutral" | "danger";
   disabled?: boolean;
 }) {
-  const on = tone === "danger" ? "border-danger bg-raised text-danger" : "border-ink bg-raised text-ink";
   return (
     <button
       type="button"
       aria-pressed={selected}
       disabled={disabled}
       onClick={onClick}
-      className={`min-h-11 rounded-control border px-4 text-[16px] font-medium transition-colors disabled:opacity-40 ${
-        selected ? on : "border-line text-ink-dim active:bg-raised"
+      className={`inline-flex min-h-11 items-center px-2.5 text-word disabled:text-grey ${
+        selected ? "text-ink underline decoration-2 underline-offset-[7px]" : "text-grey active:text-ink"
       }`}
     >
       {children}
@@ -48,7 +66,7 @@ export function Chip({
   );
 }
 
-/** A full-width row with an on and off switch, for choosing equipment. */
+/** A full-width row with an on and off switch. The state is a word, and On is underlined. */
 export function SwitchRow({
   label,
   hint,
@@ -66,45 +84,23 @@ export function SwitchRow({
       role="switch"
       aria-checked={checked}
       onClick={() => onChange(!checked)}
-      className="flex min-h-14 w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors active:bg-raised"
+      className="flex min-h-14 w-full items-center justify-between gap-3 border-b border-rule py-3 text-left"
     >
       <span className="min-w-0">
-        <span className="block text-[17px] text-ink">{label}</span>
-        {hint ? <span className="block text-[15px] text-ink-dim">{hint}</span> : null}
+        <span className="block text-body">{label}</span>
+        {hint ? <span className="block text-small">{hint}</span> : null}
       </span>
       <span
         aria-hidden="true"
-        className={`relative h-8 w-14 shrink-0 rounded-full border transition-colors ${
-          checked ? "border-ink bg-ink" : "border-line bg-raised"
-        }`}
+        className={`shrink-0 text-body ${checked ? "underline decoration-2 underline-offset-[7px]" : "text-grey"}`}
       >
-        <span
-          className={`absolute left-0.5 top-0.5 h-[26px] w-[26px] rounded-full transition-transform ${
-            checked ? "translate-x-6 bg-ground" : "bg-ink-faint"
-          }`}
-        />
+        {checked ? "On" : "Off"}
       </span>
     </button>
   );
 }
 
-/** One mark per set: filled in the accent when logged. */
-export function SetDots({ done, total }: { done: number; total: number }) {
-  const shown = Math.min(total, 12);
-  return (
-    <span role="img" aria-label={`${done} of ${total} sets done`} className="flex items-center gap-1">
-      {Array.from({ length: shown }, (_, i) => (
-        <span
-          key={i}
-          className={`h-2 w-2 rounded-full border ${i < done ? "border-ember bg-ember" : "border-ink-faint"}`}
-        />
-      ))}
-      {done > total ? <span className="ml-1 text-[13px] text-ink-dim">+{done - total}</span> : null}
-    </span>
-  );
-}
-
-/** A 1 to 5 scale. Tapping the chosen number again clears it. */
+/** A 1 to 5 scale as a table row: the label, then five 56px cells. Tapping the chosen number again clears it. */
 export function RatingRow({
   label,
   low,
@@ -119,9 +115,9 @@ export function RatingRow({
   onChange: (next: number | null) => void;
 }) {
   return (
-    <div role="group" aria-label={`${label}, 1 is ${low.toLowerCase()}, 5 is ${high.toLowerCase()}`} className="flex flex-col gap-2">
-      <span className="text-[15px] font-medium text-ink-dim">{label}</span>
-      <div className="flex gap-2">
+    <div role="group" aria-label={`${label}, 1 is ${low.toLowerCase()}, 5 is ${high.toLowerCase()}`} className="border-t border-rule">
+      <div className="grid grid-cols-[var(--label-col)_repeat(5,minmax(0,1fr))] items-stretch">
+        <span className="flex items-center pr-2 text-body">{label}</span>
         {[1, 2, 3, 4, 5].map((n) => (
           <button
             key={n}
@@ -129,28 +125,54 @@ export function RatingRow({
             aria-pressed={value === n}
             aria-label={`${label} ${n}`}
             onClick={() => onChange(value === n ? null : n)}
-            className={`min-h-12 flex-1 rounded-control border text-[17px] font-semibold transition-colors ${
-              value === n ? "border-ink bg-raised text-ink" : "border-line text-ink-dim active:bg-raised"
+            className={`flex h-14 items-center justify-center border-l border-rule text-control active:bg-ink active:text-ground ${
+              value === n ? "" : "text-grey"
             }`}
           >
-            {n}
+            <span className={value === n ? "underline decoration-2 underline-offset-[7px]" : undefined}>{n}</span>
           </button>
         ))}
       </div>
-      <div className="flex justify-between text-[13px] text-ink-faint">
+      <p className="flex justify-between pb-3 pl-[var(--label-col)] text-small">
         <span>1, {low.toLowerCase()}</span>
         <span>5, {high.toLowerCase()}</span>
-      </div>
+      </p>
     </div>
   );
 }
 
-/** A short line of status text with an optional action, for sync and offline notices. */
+/** A line of status text between two hairlines, with an optional action, for sync and offline notices. */
 export function Notice({ children, action }: { children: ReactNode; action?: ReactNode }) {
   return (
-    <div className="flex items-center justify-between gap-3 rounded-card border border-line bg-surface py-1 pl-4 pr-1">
-      <p className="py-2 text-[15px] text-ink-dim">{children}</p>
-      {action}
+    <div className="flex min-h-11 items-center justify-between gap-3 border-y border-rule py-1">
+      <p className="py-2 text-body">{children}</p>
+      {action ? <div className="-mr-2 shrink-0">{action}</div> : null}
     </div>
   );
+}
+
+/**
+ * The primary band at the bottom of a sheet's scrolling content, with an error line above it.
+ * The sheet's content has 24px of bottom padding and a sticky offset is measured inside padding,
+ * so the band sticks 24px lower and ends flush with the sheet.
+ */
+export function SheetBand({ error, children }: { error?: string | null; children: ReactNode }) {
+  return (
+    <div className="bleed sticky -bottom-6 -mb-6 bg-ground [&>button]:w-full">
+      {error ? (
+        <p role="alert" className="border-t border-rule px-safe py-3 font-medium">
+          {error}
+        </p>
+      ) : null}
+      {children}
+    </div>
+  );
+}
+
+/**
+ * Pins a primary band to the bottom edge on a screen with no tab bar, with the space the
+ * home indicator needs under it. Reserve the scroll space under the content yourself.
+ */
+export function BottomBand({ children }: { children: ReactNode }) {
+  return <div className="fixed inset-x-0 bottom-0 z-30 bg-ground pb-safe [&>button]:w-full">{children}</div>;
 }

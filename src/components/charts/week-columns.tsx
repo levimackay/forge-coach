@@ -15,41 +15,43 @@ export interface WeekColumnsProps {
   height?: number;
 }
 
-/** One column per week: filled to sessions done, with a line at sessions planned. */
+/**
+ * One column per week: an ink bar for sessions done, standing on one baseline hairline, with the count
+ * above it. Sessions planned are a 2px ink line wider than the bar, so a short week shows the gap and a
+ * full week shows the line level with the top. The week still in progress has its date underlined.
+ */
 export function WeekColumns({ weeks, label, height = 120 }: WeekColumnsProps) {
   const top = Math.max(1, ...weeks.map((w) => Math.max(w.completed, w.planned ?? 0)));
-  const pct = (n: number) => `${(n / top) * 100}%`;
+  const px = (n: number) => Math.round((n / top) * height);
 
   return (
-    <ul aria-label={label} className="flex gap-1.5">
-      {weeks.map((w) => (
-        <li
-          key={w.key}
-          className="flex min-w-0 flex-1 flex-col items-center gap-1"
-          aria-label={`Week of ${w.label}${w.inProgress ? ", in progress" : ""}: ${w.completed}${w.planned !== null ? ` of ${w.planned} planned` : ""} sessions`}
-        >
-          <span aria-hidden="true" className="text-[15px] font-medium text-ink">
-            {w.completed}
-          </span>
-          <div aria-hidden="true" className="relative w-full rounded-[4px] bg-raised" style={{ height }}>
-            <div
-              className={`absolute inset-x-0 bottom-0 rounded-[4px] ${w.inProgress ? "bg-ember/60" : "bg-ember"}`}
-              style={{ height: pct(w.completed) }}
-            />
-            {w.planned !== null ? (
-              <div className="absolute inset-x-[-2px] h-0.5 bg-ink" style={{ bottom: `calc(${pct(w.planned)} - 1px)` }} />
-            ) : null}
-          </div>
-          <span aria-hidden="true" className="w-full text-center text-[11px] leading-tight text-ink-faint">
-            {/* "Oct 13" stacks as two lines in every column, so the labels line up. */}
-            {w.label.split(" ").map((part, i) => (
-              <span key={i} className="block">
-                {part}
-              </span>
-            ))}
-          </span>
-        </li>
-      ))}
+    <ul aria-label={label} className="flex">
+      {weeks.map((w) => {
+        const tallest = Math.max(w.completed, w.planned ?? 0);
+        return (
+          <li
+            key={w.key}
+            className="min-w-0 flex-1"
+            aria-label={`Week of ${w.label}${w.inProgress ? ", in progress" : ""}: ${w.completed}${w.planned !== null ? ` of ${w.planned} planned` : ""} sessions`}
+          >
+            <div aria-hidden="true" className="flex flex-col items-center justify-end border-b border-rule" style={{ height: height + 28 }}>
+              <span className="text-fig-24">{w.completed}</span>
+              <div className="relative mt-1 w-4" style={{ height: px(tallest) }}>
+                <div className="absolute inset-x-0 bottom-0 bg-ink" style={{ height: px(w.completed) }} />
+                {w.planned !== null ? <div className="absolute -inset-x-2 h-0.5 bg-ink" style={{ bottom: px(w.planned) - 1 }} /> : null}
+              </div>
+            </div>
+            <span aria-hidden="true" className="block pt-2 text-center text-small">
+              {/* "Oct 13" stacks as two lines in every column, so the labels line up. */}
+              {w.label.split(" ").map((part, i) => (
+                <span key={i} className={`block ${w.inProgress ? "underline decoration-2 underline-offset-4" : ""}`}>
+                  {part}
+                </span>
+              ))}
+            </span>
+          </li>
+        );
+      })}
     </ul>
   );
 }

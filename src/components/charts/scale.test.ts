@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clamp, linear, nearestIndex, niceTicks } from "./scale";
+import { clamp, labelIndices, linear, nearestIndex } from "./scale";
 
 describe("linear", () => {
   it("maps the domain ends to the range ends and interpolates between", () => {
@@ -20,35 +20,6 @@ describe("linear", () => {
   });
 });
 
-describe("niceTicks", () => {
-  it("rounds to 1, 2 or 5 steps and covers the data", () => {
-    const t = niceTicks(135, 165, 3);
-    expect(t.ticks).toEqual([130, 140, 150, 160, 170]);
-    expect(t.min).toBe(130);
-    expect(t.max).toBe(170);
-  });
-
-  it("handles small decimals without float noise", () => {
-    const t = niceTicks(0.1, 0.5, 4);
-    expect(t.ticks).toEqual([0.1, 0.2, 0.3, 0.4, 0.5]);
-  });
-
-  it("widens a flat series so the line sits in the middle", () => {
-    const t = niceTicks(80, 80, 3);
-    expect(t.min).toBeLessThan(80);
-    expect(t.max).toBeGreaterThan(80);
-  });
-
-  it("works around zero and for a flat zero series", () => {
-    const zero = niceTicks(0, 0, 3);
-    expect(zero.min).toBeLessThan(0);
-    expect(zero.max).toBeGreaterThan(0);
-    const mixed = niceTicks(-3, 7, 4);
-    expect(mixed.ticks[0]).toBeLessThanOrEqual(-3);
-    expect(mixed.ticks[mixed.ticks.length - 1]).toBeGreaterThanOrEqual(7);
-  });
-});
-
 describe("nearestIndex", () => {
   it("picks the closest x, the earlier one on a tie", () => {
     expect(nearestIndex([0, 10, 30], 12)).toBe(1);
@@ -63,5 +34,26 @@ describe("clamp", () => {
     expect(clamp(5, 0, 3)).toBe(3);
     expect(clamp(-1, 0, 3)).toBe(0);
     expect(clamp(2, 0, 3)).toBe(2);
+  });
+});
+
+describe("labelIndices", () => {
+  const xs = (n: number, step: number) => Array.from({ length: n }, (_, i) => i * step);
+
+  it("labels every entry when they are far enough apart", () => {
+    expect([...labelIndices(xs(5, 80), 40)].sort()).toEqual([0, 1, 2, 3, 4]);
+  });
+
+  it("thins a crowded series from the last entry back, never closer than the gap", () => {
+    const picked = [...labelIndices(xs(12, 10), 35)].sort((a, b) => a - b);
+    expect(picked).toContain(11);
+    for (let i = 1; i < picked.length; i++) expect((picked[i] - picked[i - 1]) * 10).toBeGreaterThanOrEqual(35);
+    expect(picked.length).toBeLessThan(12);
+  });
+
+  it("always labels the kept entry and drops labels that would touch it", () => {
+    const picked = labelIndices(xs(12, 10), 35, 5);
+    expect(picked.has(5)).toBe(true);
+    for (const i of picked) if (i !== 5) expect(Math.abs(i - 5) * 10).toBeGreaterThanOrEqual(35);
   });
 });

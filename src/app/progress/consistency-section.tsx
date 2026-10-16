@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { WeekColumns } from "@/components/charts";
-import { Panel, Section } from "@/components/coach/section";
+import { Section } from "@/components/coach/section";
 import { ButtonLink, EmptyState, Skeleton } from "@/components/ui";
 import { useActiveProgram, useWorkouts } from "@/lib/local";
 import { consistencyColumns } from "./derive";
@@ -28,13 +28,13 @@ export function ConsistencySection({ athlete }: { athlete: Athlete }) {
   const nothingYet = workouts !== undefined && !workouts.some((w) => w.status === "completed");
 
   let body;
-  if (!result) body = <Skeleton className="h-44 w-full" />;
+  if (!result) body = <Skeleton rows={3} />;
   else if (nothingYet) {
     body = (
       <EmptyState
         title="No finished workouts yet"
         action={
-          <ButtonLink href="/today" variant="primary">
+          <ButtonLink href="/today" variant="primary" className="bleed">
             Go to today
           </ButtonLink>
         }
@@ -50,15 +50,15 @@ export function ConsistencySection({ athlete }: { athlete: Athlete }) {
           ? `${result.finishedCompleted} sessions across the last ${result.finishedWeeks} full weeks. There is no active program to compare with.`
           : `${result.finishedCompleted} of ${result.finishedPlanned} planned sessions across the last ${result.finishedWeeks} full weeks.`;
     body = (
-      <Panel className="flex flex-col gap-4">
+      <>
         <WeekColumns weeks={result.columns} label="Finished sessions per week, oldest first" />
-        <p className="text-[15px] text-ink-dim">
+        <p className="text-why">
           {result.columns[0].planned === null
             ? "Each column is the sessions you finished that week."
-            : "Each column is the sessions you finished that week. The white line is how many your program plans."}
+            : "Each column is the sessions you finished that week. The line across it is how many your program plans."}
         </p>
-        {summary ? <p className="border-t border-line pt-3 text-[17px] text-ink">{summary}</p> : null}
-      </Panel>
+        {summary ? <p className="border-t border-rule pt-3">{summary}</p> : null}
+      </>
     );
   }
 

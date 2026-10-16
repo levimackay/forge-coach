@@ -42,21 +42,23 @@ export function ActivityLog({ entries, timeZone }: { entries: AuditEntry[]; time
   const shown = all ? entries : entries.slice(0, FIRST_PAGE);
 
   return (
-    <div className="flex flex-col gap-3">
-      <ul className="overflow-hidden rounded-card border border-line bg-surface">
+    <div className="flex flex-col">
+      <ul className="border-b border-rule">
         {shown.map((entry) => {
           const { text, extra } = describeAudit(entry);
           return (
-            <li key={entry.id} className="flex flex-col gap-0.5 border-b border-line px-4 py-3 last:border-b-0">
-              <p className="text-[15px] text-ink">{text}</p>
-              {extra ? <p className="text-[15px] text-ink-dim">{extra}</p> : null}
-              <p className="text-[13px] text-ink-faint">{dateTimeText(entry.at, timeZone)}</p>
+            <li key={entry.id} className="flex items-baseline justify-between gap-4 border-t border-rule py-3">
+              <div className="min-w-0">
+                <p>{text}</p>
+                {extra ? <p className="text-why">{extra}</p> : null}
+              </div>
+              <p className="shrink-0 text-right text-small">{dateTimeText(entry.at, timeZone)}</p>
             </li>
           );
         })}
       </ul>
       {!all && entries.length > FIRST_PAGE ? (
-        <Button variant="secondary" onClick={() => setAll(true)}>
+        <Button variant="secondary" className="-ml-4 self-start" onClick={() => setAll(true)}>
           {`Show ${entries.length - FIRST_PAGE} more`}
         </Button>
       ) : null}

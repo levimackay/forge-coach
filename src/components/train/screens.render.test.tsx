@@ -78,6 +78,7 @@ vi.mock("./use-now", () => ({
   useToday: () => mock.date,
 }));
 
+import { RestClock, RestControls } from "./rest-bar";
 import { HistoryScreen } from "./history-screen";
 import { LogScreen } from "./log-screen";
 import { OnboardingFlow } from "./onboarding-flow";
@@ -150,8 +151,8 @@ describe("onboarding", () => {
     expect(words).toContain("Step 1 of 4");
     expect(words).toContain("About you");
     expect(words).toContain("Your name");
-    expect(words).toContain("Bodyweight");
-    expect(out).toContain('aria-label="Decrease Bodyweight"');
+    expect(words).toContain("Body weight");
+    expect(out).toContain('aria-label="Decrease Body weight"');
     expectNamedButtons(out);
   });
 
@@ -175,8 +176,8 @@ describe("today", () => {
     expect(words).toContain("Thursday, October 15");
     expect(words).toContain("Barbell bench press");
     expect(words).toContain("Pick a weight");
-    expect(words).toContain("4 sets of 6 to 10, 2 RIR");
-    expect(words).toContain("Training at");
+    expect(words).toContain("4 sets of 6 to 10 at 2 RIR");
+    expect(out).toContain('aria-label="Training at"');
     expect(words).toContain("Gym");
     expect(words).toContain("Home");
     expect(words).toContain("How did you recover?");
@@ -209,7 +210,7 @@ describe("today", () => {
     mock.today = await loadToday(first.ctx.day.id);
     const words = text(html(<TodayScreen />));
     expect(words).toContain("From Push / Pull / Legs (3 day)");
-    expect(words).toContain("Last workout: Push");
+    expect(words).toContain("after Push on");
     expect(words).toMatch(/so the (weight|bar|dumbbells|assistance)|aim for/i);
   });
 
@@ -281,18 +282,24 @@ describe("workout logger", () => {
     const words = text(out);
     expect(words).toContain("Push");
     expect(words).toContain("Barbell bench press");
-    expect(words).toContain("0 of 4 sets");
-    expect(words).toContain("4 sets of 6 to 10, 2 RIR");
+    expect(words).toContain("Set 1 of 4");
+    expect(words).toContain("4 sets of 6 to 10 at 2 RIR");
     expect(words).toContain("Log set 1");
     expect(out).toContain('aria-label="Increase Reps"');
     expect(out).toContain('aria-label="Increase Weight"');
-    expect(words).toContain("Reps in reserve (RIR)");
+    expect(out).toContain('aria-label="Increase RIR"');
     expect(words).toContain("Warmup");
     expect(words).toContain("Pain");
     expect(words).toContain("Swap exercise");
     expect(words).toContain("Log at least one set to finish.");
     expect(words).toContain("Discard workout");
     expect(out).toMatch(/<button[^>]*disabled=""[^>]*>[\s\S]*?Log set 1/);
+    // One collapsed Next row names the next exercise and counts the rest.
+    expect(words).toMatch(/Next Seated dumbbell shoulder press\. 4 more/);
+    expect(out).toMatch(/aria-expanded="false"[^>]*>\s*<span>Next</);
+    // With no rest running the clock shows the session, and there is no rest strip.
+    expect(words).toContain("Elapsed");
+    expect(out).not.toContain('aria-label="Rest timer controls"');
     expectNamedButtons(out);
   });
 
@@ -300,10 +307,12 @@ describe("workout logger", () => {
     await inProgress(3);
     const out = html(<WorkoutScreen />);
     const words = text(out);
-    expect(words).toContain("2 of 4 sets");
+    expect(words).toContain("Set 3 of 4");
     expect(words).toContain("Warmup");
     expect(words).toContain("Set 1");
-    expect(words).toContain("8 reps at 135 lb, 2 RIR");
+    expect(words).toContain("135 lb × 8 at 2 RIR");
+    // The Log set band is red and carries the values being logged.
+    expect(out).toMatch(/<button[^>]*bg-red[^>]*>[\s\S]*?Log set 3[\s\S]*?135 × 8, 2 RIR/);
     expect(out).toContain('aria-label="Edit warmup: 8 reps at 135 lb"');
     expect(out).toContain('aria-label="Edit set 1: 8 reps at 135 lb, 2 RIR"');
     expect(words).toContain("Log set 3");
@@ -325,7 +334,7 @@ describe("workout logger", () => {
     expect(words).toContain("Workout complete");
     expect(words).toContain("What changes next time");
     expect(words).toContain("What you did");
-    expect(words).toContain("effort 8 of 10");
+    expect(words).toContain("Effort 8 of 10");
     expect(words).toContain("Barbell bench press");
     expect(out).toContain('href="/today"');
     expectNamedButtons(out);
@@ -343,6 +352,29 @@ describe("workout logger", () => {
     expect(text(html(<WorkoutScreen />))).toContain("This workout was discarded");
     mock.workoutData = { ...(mock.workoutData as object), workout: { ...(mock.workoutData as { workout: object }).workout, status: "in_progress" }, ctx: null };
     expect(text(html(<WorkoutScreen />))).toContain("This workout has no program day");
+  });
+});
+
+describe("rest clock", () => {
+  const onChange = () => {};
+
+  it("counts down in a red depletion bar, names the next set and offers the rest controls", () => {
+    const rest = { endsAt: (mock.now as number) + 176_000, total: 180 };
+    const clock = html(<RestClock rest={rest} onChange={onChange} next="Set 2 next" />);
+    expect(clock).toContain('role="timer"');
+    expect(clock).toContain("2:56");
+    expect(clock).toContain("Set 2 next");
+    expect(clock).toMatch(/bg-red[^>]*style="width:97\.\d+%"/);
+    const strip = html(<RestControls rest={rest} onChange={onChange} />);
+    expect(strip).toContain('aria-label="Take 15 seconds off the rest"');
+    expect(strip).toContain('aria-label="Add 15 seconds to the rest"');
+    expect(text(strip)).toContain("Skip");
+  });
+
+  it("says when the rest is over and offers to dismiss it", () => {
+    const rest = { endsAt: (mock.now as number) - 5_000, total: 90 };
+    expect(text(html(<RestClock rest={rest} onChange={onChange} next="Set 3 next" />))).toContain("Go Rest over");
+    expect(text(html(<RestControls rest={rest} onChange={onChange} />))).toContain("Dismiss");
   });
 });
 
@@ -401,7 +433,7 @@ describe("program", () => {
     expect(words).toContain("Push / Pull / Legs (3 day), 3 days a week");
     expect(out).toContain('aria-label="Program days"');
     expect(out.match(/aria-pressed="true"/g)).toHaveLength(1);
-    expect(words).toContain("Push, 6 exercises, Gym");
+    expect(words).toContain("Push. 6 exercises, Gym");
     expect(words).toContain("Barbell bench press");
     expect(words).toContain("Add an exercise");
     expectNamedButtons(out);

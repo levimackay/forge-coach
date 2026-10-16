@@ -1,12 +1,12 @@
 import { useId } from "react";
-import { IconChevronRight } from "@/components/ui/icons";
+import { IconChevronDown } from "@/components/ui/icons";
 
 export interface NativeSelectOption {
   value: string;
   label: string;
 }
 
-/** The platform picker, which on iPhone is the wheel everyone already knows. */
+/** The platform picker, which on iPhone is the wheel everyone already knows. A label above an ink underline, like a Field. */
 export function NativeSelect({
   label,
   value,
@@ -22,8 +22,8 @@ export function NativeSelect({
 }) {
   const id = useId();
   return (
-    <div className="flex flex-col gap-1.5">
-      <label htmlFor={id} className="text-[15px] font-medium text-ink-dim">
+    <div className="flex flex-col gap-1">
+      <label htmlFor={id} className="text-body">
         {label}
       </label>
       <div className="relative">
@@ -32,7 +32,7 @@ export function NativeSelect({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           aria-describedby={hint ? `${id}-hint` : undefined}
-          className="min-h-12 w-full appearance-none rounded-control border border-line bg-surface pl-4 pr-11 text-ink focus:border-ink focus:outline-none"
+          className="min-h-12 w-full appearance-none border-0 border-b border-ink bg-transparent pl-0 pr-8 text-body text-ink"
         >
           {options.map((o) => (
             <option key={o.value} value={o.value}>
@@ -40,10 +40,10 @@ export function NativeSelect({
             </option>
           ))}
         </select>
-        <IconChevronRight size={20} className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 rotate-90 text-ink-faint" />
+        <IconChevronDown size={20} className="pointer-events-none absolute right-0 top-1/2 -translate-y-1/2" />
       </div>
       {hint ? (
-        <p id={`${id}-hint`} className="text-[15px] text-ink-faint">
+        <p id={`${id}-hint`} className="text-small">
           {hint}
         </p>
       ) : null}

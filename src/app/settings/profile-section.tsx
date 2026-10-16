@@ -13,12 +13,12 @@ export function ProfileSection() {
   return (
     <Section title="Profile">
       {profile === undefined ? (
-        <Skeleton className="h-64 w-full" />
+        <Skeleton rows={5} />
       ) : profile === null ? (
         <EmptyState
           title="Finish setup first"
           action={
-            <ButtonLink href="/onboarding" variant="primary">
+            <ButtonLink href="/onboarding" variant="primary" className="bleed">
               Set up FORGE
             </ButtonLink>
           }
@@ -99,14 +99,14 @@ function ProfileForm({ profile }: { profile: Profile }) {
   };
 
   return (
-    <form onSubmit={submit} className="flex flex-col gap-4" noValidate>
+    <form onSubmit={submit} className="flex flex-col gap-5" noValidate>
       <Field label="Name" value={name} maxLength={80} autoComplete="name" onChange={(e) => setName(e.target.value)} />
-      <div className="flex flex-col gap-1.5">
-        <span className="text-[15px] font-medium text-ink-dim">
-          Weight unit
-        </span>
+      <div className="flex flex-col">
+        <span>Weight unit</span>
         <Segmented
           label="Weight unit"
+          className="-ml-2.5"
+          slash
           value={unit}
           onChange={setUnit}
           options={[
@@ -131,7 +131,7 @@ function ProfileForm({ profile }: { profile: Profile }) {
         options={zones}
         hint="Decides which day a workout belongs to in your charts and reports."
       />
-      <Button type="submit" variant="primary" size="lg" loading={saving} disabled={!dirty}>
+      <Button type="submit" variant="primary" className="bleed" loading={saving} disabled={!dirty}>
         Save profile
       </Button>
 
@@ -140,7 +140,7 @@ function ProfileForm({ profile }: { profile: Profile }) {
         onClose={() => setConfirmUnit(false)}
         title={`Switch to ${unit}?`}
         footer={
-          <div className="flex gap-3">
+          <div className="flex items-stretch">
             <Button variant="secondary" className="flex-1" onClick={() => setConfirmUnit(false)}>
               Cancel
             </Button>
@@ -157,12 +157,12 @@ function ProfileForm({ profile }: { profile: Profile }) {
           </div>
         }
       >
-        <div className="flex flex-col gap-3 text-[17px] text-ink-dim">
+        <div className="flex flex-col gap-3">
           <p>
             FORGE does not convert the weights you have already logged or planned. A set you logged as 135 will read as 135 {unit} from
             now on.
           </p>
-          <p>If your gym changed units, switch and re-enter your planned loads. If it did not, leave the unit as it is.</p>
+          <p className="text-why">If your gym changed units, switch and re-enter your planned loads. If it did not, leave the unit as it is.</p>
         </div>
       </Sheet>
     </form>

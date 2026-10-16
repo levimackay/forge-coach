@@ -10,7 +10,9 @@ import { ReportsPanel } from "@/components/coach/reports-panel";
 import { Section } from "@/components/coach/section";
 import { useCoachContext } from "@/components/coach/use-diff-context";
 import { useNowIso, useOnline } from "@/components/coach/use-now";
-import { ButtonLink, EmptyState, Skeleton, useToast } from "@/components/ui";
+import { ScreenBar } from "@/components/shell/screen-bar";
+import { SyncChip } from "@/components/shell/sync-chip";
+import { ButtonLink, EmptyState, Skeleton, named, useToast } from "@/components/ui";
 import {
   NetworkRequiredError,
   approveProposal,
@@ -74,16 +76,16 @@ export function CoachScreen() {
   const loading = proposals === undefined || context === undefined || profile === undefined;
 
   return (
-    <div className="flex flex-col gap-10 py-4">
-      <h1 className="title-large">Coach</h1>
+    <div className="flex flex-col gap-10 pb-6">
+      <ScreenBar tall start={<h1 className="text-head">{named("Coach")}</h1>} end={<SyncChip align="end" />} />
 
       <Section
         title="Waiting for you"
         description="Program changes suggested by Claude or by you. Nothing changes until you approve it."
       >
         {loading ? (
-          <div className="flex flex-col gap-4" aria-busy="true">
-            <Skeleton className="h-56 w-full" />
+          <div aria-busy="true">
+            <Skeleton rows={4} />
           </div>
         ) : pending.length === 0 ? (
           <EmptyState
@@ -97,11 +99,11 @@ export function CoachScreen() {
             When Claude suggests a change to your program it shows up here with exactly what would change.
           </EmptyState>
         ) : (
-          <ul className="flex flex-col gap-4">
+          <ul className="border-b border-rule">
             {pending.map((p) => {
               const program = context.programs.get(p.program_id);
               return (
-                <li key={p.id}>
+                <li key={p.id} className="border-t border-rule">
                   <ProposalCard
                     proposal={p}
                     blocks={describeChanges(p.changes, context.diff, "pending")}
@@ -140,7 +142,7 @@ export function CoachScreen() {
         {profile ? (
           <ReportsPanel unit={profile.unit} />
         ) : (
-          <p className="text-[17px] text-ink-dim">{profile === undefined ? "Loading." : "Finish setup to build reports."}</p>
+          <p>{profile === undefined ? "Loading." : "Finish setup to build reports."}</p>
         )}
       </Section>
 
@@ -150,11 +152,9 @@ export function CoachScreen() {
 
       <Section title="Activity" description="A record of who proposed, approved, applied and undid what.">
         {audit === undefined ? (
-          <Skeleton className="h-32 w-full" />
+          <Skeleton rows={3} />
         ) : audit.length === 0 ? (
-          <p className="rounded-card border border-line bg-surface p-4 text-[17px] text-ink-dim">
-            Nothing recorded yet. Proposals and the decisions you make about them are listed here.
-          </p>
+          <p>Nothing recorded yet. Proposals and the decisions you make about them are listed here.</p>
         ) : (
           <ActivityLog entries={audit} timeZone={profile?.timezone ?? "UTC"} />
         )}

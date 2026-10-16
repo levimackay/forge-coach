@@ -8,8 +8,11 @@ import {
   consistencyColumns,
   decisionChangeRows,
   exerciseOptions,
+  figureGroups,
+  metricDigits,
   seriesToLine,
   sessionFacts,
+  trendFigure,
   trendSummary,
   volumeRows,
   weekWindows,
@@ -139,15 +142,15 @@ describe("metrics and series", () => {
 
   it("describes the best set and the session", () => {
     const [point] = sessions(bench, [{ date: "2026-10-01", reps: 8, load: 135 }]);
-    expect(bestSetText(point, "external", "lb")).toBe("135 lb x 8");
+    expect(bestSetText(point, "external", "lb")).toBe("135 lb × 8");
     expect(sessionFacts(point, "external", "lb")).toEqual([
-      "Best set: 135 lb x 8",
-      "1 work set, 8 reps in total",
-      "Average 2 reps in reserve",
+      { label: "Best set", value: "135 lb × 8" },
+      { label: "Work sets", value: "1 set, 8 reps in total" },
+      { label: "Reps in reserve", value: "2 on average" },
     ]);
     const [bw] = sessions(pushup, [{ date: "2026-10-01", reps: 12, load: null }]);
     expect(bestSetText(bw, "bodyweight", "lb")).toBe("12 reps");
-    expect(bestSetText({ ...bw, best_set: { reps: 6, load: 25, e1rm: null } }, "bodyweight", "kg")).toBe("+25 kg x 6");
+    expect(bestSetText({ ...bw, best_set: { reps: 6, load: 25, e1rm: null } }, "bodyweight", "kg")).toBe("+25 kg × 6");
     expect(bestSetText({ ...bw, best_set: { reps: 6, load: 20, e1rm: null } }, "assisted", "lb")).toBe("6 reps with 20 lb assistance");
   });
 
@@ -160,7 +163,7 @@ describe("metrics and series", () => {
       bodyweight: null,
       timeZone: TZ,
     });
-    expect(sessionFacts(series[0], "external", "lb")).toContain("Pain was flagged in this session");
+    expect(sessionFacts(series[0], "external", "lb")).toContainEqual({ label: "Pain", value: "Flagged in this session" });
   });
 });
 
@@ -173,6 +176,46 @@ describe("trendSummary", () => {
     expect(trendSummary(pts(100, 100), "lb")).toBe("No change since D0 (2 sessions)");
     expect(trendSummary(pts(100), "lb")).toBeNull();
     expect(trendSummary([], "lb")).toBeNull();
+  });
+});
+
+describe("metricDigits", () => {
+  it("rounds an estimate and a total to whole numbers and keeps one decimal for loads and reps", () => {
+    expect(metricDigits("e1rm")).toBe(0);
+    expect(metricDigits("volume")).toBe(0);
+    expect(metricDigits("load")).toBe(1);
+    expect(metricDigits("reps")).toBe(1);
+  });
+});
+
+describe("figureGroups", () => {
+  it("sets numbers and the multiplication sign as figures and units as words", () => {
+    expect(figureGroups("160 lb × 6")).toEqual([
+      { figure: true, text: "160" },
+      { figure: false, text: "lb" },
+      { figure: true, text: "× 6" },
+    ]);
+    expect(figureGroups("12 reps")).toEqual([
+      { figure: true, text: "12" },
+      { figure: false, text: "reps" },
+    ]);
+    expect(figureGroups("6 reps with 20 lb assistance").map((g) => g.text)).toEqual(["6", "reps with", "20", "lb assistance"]);
+  });
+});
+
+describe("trendFigure", () => {
+  const pts = (...ys: number[]) => ys.map((y, i) => ({ x: i, y, label: `D${i}` }));
+
+  it("gives the signed change, the unit, where it started and how many sessions", () => {
+    expect(trendFigure(pts(186, 196, 201, 207, 192), "lb")).toEqual({ value: "+6", unit: "lb", since: "D0", sessions: 5 });
+    expect(trendFigure(pts(150, 140, 142.5), "lb")).toEqual({ value: "−7.5", unit: "lb", since: "D0", sessions: 3 });
+    expect(trendFigure(pts(100, 100), "lb")?.value).toBe("0");
+    expect(trendFigure(pts(1000, 2250), "lb", 0)?.value).toBe("+1,250");
+  });
+
+  it("is null for fewer than two points", () => {
+    expect(trendFigure(pts(100), "lb")).toBeNull();
+    expect(trendFigure([], "lb")).toBeNull();
   });
 });
 

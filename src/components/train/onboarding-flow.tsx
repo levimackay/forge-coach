@@ -6,13 +6,15 @@ import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { IconCheck } from "@/components/ui/icons";
 import { ListGroup } from "@/components/ui/list-row";
+import { named } from "@/components/ui/name";
+import { ScreenBar } from "@/components/shell/screen-bar";
 import { NumberStepper } from "@/components/ui/number-stepper";
 import { Segmented } from "@/components/ui/segmented";
 import { useExerciseLibrary, useProfile, useSyncStatus } from "@/lib/local";
 import { syncNow } from "@/lib/local/sync";
 import type { Exercise, Profile } from "@/lib/domain/types";
 import type { PplVariant } from "@/lib/templates/ppl";
-import { Chip, Notice, SectionTitle, SwitchRow } from "./bits";
+import { BottomBand, Chip, Notice, SectionTitle, SwitchRow } from "./bits";
 import { EQUIPMENT_NAME, MUSCLES, MUSCLE_LABEL } from "./format";
 import {
   GOAL_KINDS,
@@ -100,60 +102,49 @@ function Wizard({ profile, library }: { profile: Profile | null; library: Exerci
   };
 
   return (
-    <div className="flex flex-1 flex-col gap-6 pt-3">
-      <header className="flex flex-col gap-3">
-        <div className="flex items-center gap-3">
-          <p className="text-[15px] text-ink-dim">
+    <div className="flex flex-1 flex-col pb-[var(--band-height)]">
+      <ScreenBar
+        start={
+          <p>
             Step {step + 1} of {STEP_COUNT}
           </p>
-          <div className="flex flex-1 gap-1.5" aria-hidden="true">
-            {TITLES.map((title, i) => (
-              <span key={title} className={`h-1 flex-1 rounded-full ${i <= step ? "bg-ember" : "bg-raised"}`} />
-            ))}
-          </div>
-        </div>
-        <h1 ref={heading} tabIndex={-1} className="title-large outline-none">
-          {TITLES[step]}
-        </h1>
-      </header>
+        }
+        end={
+          step > 0 ? (
+            <Button variant="ghost" size="sm" className="-mr-2" disabled={saving} onClick={() => setStep(step - 1)}>
+              Back
+            </Button>
+          ) : undefined
+        }
+      />
+      <div className="flex h-0.5 items-end gap-1" aria-hidden="true">
+        {TITLES.map((title, i) => (
+          <span key={title} className={`flex-1 ${i <= step ? "h-0.5 bg-ink" : "h-px bg-rule"}`} />
+        ))}
+      </div>
+      <h1 ref={heading} tabIndex={-1} className="pb-4 pt-6 text-head outline-none">
+        {named(TITLES[step])}
+      </h1>
 
       <div className="flex flex-1 flex-col gap-6">
         {step === 0 ? <AboutStep draft={draft} errors={errors} patch={patch} /> : null}
         {step === 1 ? <EquipmentStep draft={draft} errors={errors} patch={patch} /> : null}
         {step === 2 ? <GoalStep draft={draft} patch={patch} /> : null}
         {step === 3 ? (
-          <ProgramStep
-            draft={draft}
-            library={library}
-            patch={patch}
-            offline={!sync.online}
-            syncing={sync.syncing}
-          />
+          <ProgramStep draft={draft} library={library} patch={patch} offline={!sync.online} syncing={sync.syncing} />
         ) : null}
         {saveError ? (
-          <p role="alert" className="text-[15px] text-danger">
+          <p role="alert" className="font-medium">
             {saveError}
           </p>
         ) : null}
       </div>
 
-      <div className="sticky bottom-0 -mx-4 flex gap-3 border-t border-line bg-ground px-4 pb-[max(12px,env(safe-area-inset-bottom))] pt-3">
-        {step > 0 ? (
-          <Button variant="secondary" size="lg" disabled={saving} onClick={() => setStep(step - 1)}>
-            Back
-          </Button>
-        ) : null}
-        <Button
-          variant="primary"
-          size="lg"
-          className="flex-1"
-          loading={saving}
-          disabled={last && !libraryReady}
-          onClick={() => void next()}
-        >
+      <BottomBand>
+        <Button variant="primary" loading={saving} disabled={last && !libraryReady} onClick={() => void next()}>
           {last ? "Create my program" : "Continue"}
         </Button>
-      </div>
+      </BottomBand>
     </div>
   );
 }
@@ -165,7 +156,7 @@ interface StepProps {
 
 function FieldError({ children }: { children?: string }) {
   return children ? (
-    <p role="alert" className="text-[15px] text-danger">
+    <p role="alert" className="font-medium">
       {children}
     </p>
   ) : null;
@@ -195,11 +186,10 @@ function AboutStep({ draft, errors, patch }: StepProps & { errors: StepErrors })
         error={errors.name}
         onChange={(e) => patch({ name: e.target.value })}
       />
-      <div className="flex flex-col gap-1.5">
-        <span className="text-[15px] font-medium text-ink-dim">
-          Weight unit
-        </span>
+      <div>
+        <span className="block">Weight unit</span>
         <Segmented
+          className="-ml-2.5"
           label="Weight unit"
           value={draft.unit}
           onChange={changeUnit}
@@ -209,17 +199,20 @@ function AboutStep({ draft, errors, patch }: StepProps & { errors: StepErrors })
           ]}
         />
       </div>
-      <div className="flex flex-col gap-1.5">
-        <NumberStepper
-          label="Bodyweight"
-          unit={draft.unit}
-          value={draft.bodyweight}
-          step={0.5}
-          min={range.min}
-          max={range.max}
-          hint="Used to estimate strength on pull-ups, push-ups and dips."
-          onChange={(bodyweight) => patch({ bodyweight })}
-        />
+      <div className="flex flex-col gap-2">
+        <div>
+          <NumberStepper
+            label="Body weight"
+            unit={draft.unit}
+            value={draft.bodyweight}
+            step={0.5}
+            min={range.min}
+            max={range.max}
+            hint="Used to estimate strength on pull-ups, push-ups and dips."
+            onChange={(bodyweight) => patch({ bodyweight })}
+          />
+          <div className="border-t border-rule" />
+        </div>
         <FieldError>{errors.bodyweight}</FieldError>
       </div>
     </>
@@ -236,47 +229,45 @@ function EquipmentStep({ draft, errors, patch }: StepProps & { errors: StepError
 
   return (
     <>
-      <div className="flex flex-col gap-2">
+      <div>
         <SectionTitle>Where do you train?</SectionTitle>
-        <div className="overflow-hidden rounded-card border border-line bg-surface">
+        <div className="border-t border-rule">
           <SwitchRow label="At home" checked={draft.atHome} onChange={(atHome) => patch({ atHome })} />
-          <div className="border-t border-line" />
           <SwitchRow label="At a gym" checked={draft.atGym} onChange={(atGym) => patch({ atGym })} />
         </div>
         <FieldError>{errors.places}</FieldError>
       </div>
 
       {draft.atHome ? (
-        <div className="flex flex-col gap-2">
+        <div>
           <SectionTitle>What you have at home</SectionTitle>
-          <p className="px-1 text-[15px] text-ink-dim">Bodyweight is always included. Turn on anything else you own.</p>
-          <div className="overflow-hidden rounded-card border border-line bg-surface">
-            {HOME_CHOICES.map((code, i) => (
-              <div key={code} className={i > 0 ? "border-t border-line" : ""}>
-                <SwitchRow
-                  label={EQUIPMENT_NAME[code]}
-                  checked={draft.homeEquipment.includes(code)}
-                  onChange={(on) => toggleHome(code, on)}
-                />
-              </div>
+          <p className="pb-3">Bodyweight is always included. Turn on anything else you own.</p>
+          <div className="border-t border-rule">
+            {HOME_CHOICES.map((code) => (
+              <SwitchRow
+                key={code}
+                label={EQUIPMENT_NAME[code]}
+                checked={draft.homeEquipment.includes(code)}
+                onChange={(on) => toggleHome(code, on)}
+              />
             ))}
           </div>
           {dumbbells ? (
-            <div className="mt-2 flex flex-col gap-5 rounded-card border border-line bg-surface p-4">
-              <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-2 pt-6">
+              <div>
                 <NumberStepper
-                  label="Smallest jump between dumbbells"
+                  label="Smallest jump"
                   unit={draft.unit}
                   value={resolvedIncrement(draft)}
                   step={draft.unit === "lb" ? 0.5 : 0.25}
                   min={0.25}
                   max={50}
-                  hint="Adjustable dumbbells usually go up by 5 lb or 2.5 kg."
+                  hint="The smallest weight change between dumbbells. Adjustable dumbbells usually go up by 5 lb or 2.5 kg."
                   onChange={(dumbbellIncrement) => patch({ dumbbellIncrement })}
                 />
                 <FieldError>{errors.dumbbell_increment}</FieldError>
               </div>
-              <div className="flex flex-col gap-1.5">
+              <div>
                 <NumberStepper
                   label="Heaviest dumbbell"
                   unit={draft.unit}
@@ -289,13 +280,14 @@ function EquipmentStep({ draft, errors, patch }: StepProps & { errors: StepError
                 />
                 <FieldError>{errors.dumbbell_max}</FieldError>
               </div>
+              <div className="border-t border-rule" />
             </div>
           ) : null}
         </div>
       ) : null}
 
       {draft.atGym ? (
-        <p className="rounded-card border border-line bg-surface p-4 text-[15px] text-ink-dim">
+        <p>
           Gym includes {GYM_EQUIPMENT.filter((c) => c !== "bodyweight")
             .map((c) => EQUIPMENT_NAME[c].toLowerCase())
             .join(", ")}
@@ -304,9 +296,10 @@ function EquipmentStep({ draft, errors, patch }: StepProps & { errors: StepError
       ) : null}
 
       {both ? (
-        <div className="flex flex-col gap-2">
+        <div>
           <SectionTitle>Build my program around</SectionTitle>
           <Segmented
+            className="-ml-2.5"
             label="Build my program around"
             value={draft.main}
             onChange={(main: Place) => patch({ main })}
@@ -315,7 +308,7 @@ function EquipmentStep({ draft, errors, patch }: StepProps & { errors: StepError
               { value: "gym", label: "Gym" },
             ]}
           />
-          <p className="px-1 text-[15px] text-ink-dim">
+          <p className="pt-2">
             The program is built from the equipment at this place. At the other place, exercises that need equipment
             you lack are swapped for similar ones.
           </p>
@@ -328,15 +321,17 @@ function EquipmentStep({ draft, errors, patch }: StepProps & { errors: StepError
 function GoalStep({ draft, patch }: StepProps) {
   return (
     <>
-      <fieldset className="flex flex-col gap-2">
-        <legend className="px-1 text-[15px] font-semibold text-ink-dim">What are you training for?</legend>
-        <div className="overflow-hidden rounded-card border border-line bg-surface">
+      <fieldset>
+        <legend className="pb-2 text-name">What are you training for?</legend>
+        <div className="border-t border-rule">
           {GOAL_KINDS.map((kind) => (
             <label
               key={kind}
-              className="flex min-h-14 cursor-pointer items-center justify-between gap-3 border-b border-line px-4 py-3 last:border-b-0 has-[:checked]:bg-raised has-[:focus-visible]:outline-2 has-[:focus-visible]:-outline-offset-2 has-[:focus-visible]:outline-ink"
+              className="group flex min-h-14 cursor-pointer items-center justify-between gap-3 border-b border-rule py-3 has-[:focus-visible]:outline-2 has-[:focus-visible]:-outline-offset-2 has-[:focus-visible]:outline-ink"
             >
-              <span className="text-[17px]">{GOAL_LABEL[kind]}</span>
+              <span className="group-has-[:checked]:underline group-has-[:checked]:decoration-2 group-has-[:checked]:underline-offset-[7px]">
+                {GOAL_LABEL[kind]}
+              </span>
               <input
                 type="radio"
                 name="goal"
@@ -361,9 +356,9 @@ function GoalStep({ draft, patch }: StepProps) {
         onChange={(e) => patch({ goalNote: e.target.value })}
       />
 
-      <fieldset className="flex flex-col gap-2">
-        <legend className="px-1 text-[15px] font-semibold text-ink-dim">Muscles to bring up (optional)</legend>
-        <div className="flex flex-wrap gap-2">
+      <fieldset>
+        <legend className="pb-1 text-name">Muscles to bring up (optional)</legend>
+        <div className="-mx-2.5 flex flex-wrap">
           {MUSCLES.map((muscle) => (
             <Chip
               key={muscle}
@@ -399,9 +394,10 @@ function ProgramStep({
 
   return (
     <>
-      <div className="flex flex-col gap-2">
+      <div>
         <SectionTitle>Push, pull, legs</SectionTitle>
         <Segmented
+          className="-ml-2.5"
           label="Training days per week"
           value={draft.variant}
           onChange={(variant: PplVariant) => patch({ variant })}
@@ -410,7 +406,7 @@ function ProgramStep({
             { value: "6day", label: "6 days a week" },
           ]}
         />
-        <p className="px-1 text-[15px] text-ink-dim">
+        <p className="pt-2">
           {draft.variant === "3day"
             ? "Each muscle is trained once a week, with extra sets on the main lifts."
             : "Each muscle is trained twice a week, once on an A day and once on a B day."}
@@ -430,27 +426,23 @@ function ProgramStep({
             : "The exercise library has not downloaded yet."}
         </Notice>
       ) : (
-        <div className="flex flex-col gap-2">
-          <SectionTitle>What you will train at {place}</SectionTitle>
-          <ListGroup label="Program preview">
+        <div>
+          <SectionTitle>{`What you will train at ${place}`}</SectionTitle>
+          <ListGroup label="Program preview" className="border-t border-rule">
             {preview.days.map((day) => (
-              <div key={day.name} className="flex flex-col gap-1 px-4 py-3">
-                <p className="text-[17px] font-medium">{day.name}</p>
-                <p className="text-[15px] text-ink-dim">
-                  {day.exercises
-                    .map((e) => e.name + (e.swapped ? " (closest match)" : ""))
-                    .join(", ")}
-                </p>
+              <div key={day.name} className="border-b border-rule py-3">
+                <p className="text-name">{named(day.name)}</p>
+                <p>{day.exercises.map((e) => e.name + (e.swapped ? " (closest match)" : "")).join(", ")}</p>
               </div>
             ))}
           </ListGroup>
           {preview.skipped > 0 ? (
-            <p className="px-1 text-[15px] text-ink-dim">
+            <p className="pt-3">
               {preview.skipped} {preview.skipped === 1 ? "exercise has" : "exercises have"} no match for your equipment
               and {preview.skipped === 1 ? "is" : "are"} left out. You can add your own later in Program.
             </p>
           ) : null}
-          <p className="px-1 text-[15px] text-ink-dim">
+          <p className="pt-3">
             Starting weights are blank. Pick them on your first workout and FORGE adjusts from there. Next to each
             exercise, RIR means reps in reserve: how many more reps you could have done.
           </p>
@@ -459,4 +451,3 @@ function ProgramStep({
     </>
   );
 }
-

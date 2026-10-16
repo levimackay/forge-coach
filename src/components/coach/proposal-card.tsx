@@ -2,7 +2,7 @@
 
 import { useId, useState } from "react";
 import type { CoachProposal } from "@/lib/domain/types";
-import { Button, Field } from "@/components/ui";
+import { Button, Field, named } from "@/components/ui";
 import type { DiffBlock } from "./diff";
 import { DiffView } from "./diff-view";
 import { timeAgo } from "./format";
@@ -37,12 +37,12 @@ export function ProposalCard({ proposal, blocks, programVersion, programActive, 
   const stale = programVersion !== null && programVersion !== proposal.base_program_version;
 
   return (
-    <article aria-labelledby={titleId} className="flex flex-col gap-4 rounded-card border border-line bg-surface p-4">
+    <article aria-labelledby={titleId} className="flex flex-col gap-4 py-4">
       <header className="flex flex-col gap-1">
-        <h3 id={titleId} className="title">
-          {proposal.title}
+        <h3 id={titleId} className="text-name">
+          {named(proposal.title)}
         </h3>
-        <p className="text-[15px] text-ink-dim">{`From ${sourceLabel(proposal.source)}, ${timeAgo(proposal.created_at, nowIso)}`}</p>
+        <p className="text-small">{`From ${sourceLabel(proposal.source)}, ${timeAgo(proposal.created_at, nowIso)}`}</p>
       </header>
 
       {programVersion === null ? (
@@ -59,7 +59,7 @@ export function ProposalCard({ proposal, blocks, programVersion, programActive, 
         </Notice>
       ) : null}
 
-      <p className="whitespace-pre-wrap text-[17px] text-ink">{proposal.rationale}</p>
+      <p className="whitespace-pre-wrap text-why">{proposal.rationale}</p>
 
       <DiffView blocks={blocks} label={`Changes in ${proposal.title}`} />
 
@@ -73,37 +73,34 @@ export function ProposalCard({ proposal, blocks, programVersion, programActive, 
         onChange={(e) => setNote(e.target.value)}
       />
 
-      <div className="flex flex-col gap-3">
-        <div className="flex gap-3">
-          <Button
-            variant="primary"
-            size="lg"
-            className="flex-1"
-            loading={busy === "approve"}
-            disabled={disabled}
-            aria-describedby={!online ? offlineId : undefined}
-            onClick={() => onDecide("approve", note.trim())}
-          >
-            Approve
-          </Button>
-          <Button
-            variant="secondary"
-            size="lg"
-            className="flex-1"
-            loading={busy === "reject"}
-            disabled={disabled}
-            aria-describedby={!online ? offlineId : undefined}
-            onClick={() => onDecide("reject", note.trim())}
-          >
-            Reject
-          </Button>
-        </div>
+      <div className="mt-2 flex flex-col gap-1">
+        <Button
+          variant="primary"
+          className="bleed"
+          loading={busy === "approve"}
+          disabled={disabled}
+          aria-describedby={!online ? offlineId : undefined}
+          onClick={() => onDecide("approve", note.trim())}
+        >
+          Approve
+        </Button>
+        <Button
+          variant="secondary"
+          size="lg"
+          fullWidth
+          loading={busy === "reject"}
+          disabled={disabled}
+          aria-describedby={!online ? offlineId : undefined}
+          onClick={() => onDecide("reject", note.trim())}
+        >
+          Reject
+        </Button>
         {!online ? (
-          <p id={offlineId} className="text-[15px] text-ink-dim">
+          <p id={offlineId} className="text-why">
             You are offline. Approving or rejecting changes your program on the server, so it needs a connection.
           </p>
         ) : (
-          <p className="text-[15px] text-ink-faint">Approving applies these changes to your program right away. You can undo them afterwards.</p>
+          <p className="text-why">Approving applies these changes to your program right away. You can undo them afterwards.</p>
         )}
       </div>
     </article>

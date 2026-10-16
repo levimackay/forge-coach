@@ -2,7 +2,7 @@
 
 import type { KeyboardEvent, PointerEvent } from "react";
 import { num } from "@/lib/reports/format";
-import { clamp, linear, nearestIndex, niceTicks } from "./scale";
+import { clamp, labelIndices, linear, nearestIndex } from "./scale";
 import { useElementWidth } from "./use-element-width";
 
 export interface LinePoint {
@@ -24,11 +24,15 @@ export interface LineChartProps {
   height?: number;
 }
 
-const MARGIN = { top: 14, right: 14, bottom: 26 };
-// Drawn at this width until the container has been measured, scaled to fit by the viewBox.
-const FIRST_PAINT_WIDTH = 340;
+// No y axis and no gridlines: every point carries its own value, and one hairline carries the dates.
+const PLOT_TOP = 38;
+const BASELINE_FROM_BOTTOM = 26.5;
+const LOWEST_POINT_ABOVE_BASELINE = 31;
+const DATE_FROM_BOTTOM = 6;
+const MIN_DATE_GAP = 56;
+const FIRST_PAINT_WIDTH = 358;
 
-export function LineChart({ points, selected, onSelect, label, unit, formatY = (y) => num(y, 1), height = 200 }: LineChartProps) {
+export function LineChart({ points, selected, onSelect, label, unit, formatY = (y) => num(y, 1), height = 162 }: LineChartProps) {
   const [ref, measured] = useElementWidth<HTMLDivElement>();
   const width = measured ?? FIRST_PAINT_WIDTH;
   const count = points.length;
@@ -36,15 +40,21 @@ export function LineChart({ points, selected, onSelect, label, unit, formatY = (
   const index = clamp(selected, 0, Math.max(0, count - 1));
   const current = points[index];
 
+  const shown = points.map((p) => formatY(p.y));
+  const widest = Math.max(...shown.map((s) => s.length));
+  // Room at both ends for a label centred on the first and last point.
+  const pad = Math.max(22, Math.ceil(widest * 5.5));
+  const baseline = height - BASELINE_FROM_BOTTOM;
   const ys = points.map((p) => p.y);
-  const { ticks, min: yMin, max: yMax } = niceTicks(Math.min(...ys), Math.max(...ys), 3);
-  const left = 12 + Math.max(...ticks.map((t) => formatY(t).length)) * 7;
-  const innerWidth = Math.max(40, width - left - MARGIN.right);
   const xs = points.map((p) => p.x);
-  const xScale = linear([xs[0], xs[count - 1]], [left, left + innerWidth]);
-  const yScale = linear([yMin, yMax], [height - MARGIN.bottom, MARGIN.top]);
+  const xScale = linear([xs[0], xs[count - 1]], [pad, Math.max(pad + 40, width - pad)]);
+  const yScale = linear([Math.min(...ys), Math.max(...ys)], [baseline - LOWEST_POINT_ABOVE_BASELINE, PLOT_TOP]);
   const px = points.map((p) => xScale(p.x));
-  const path = points.map((p, i) => `${i === 0 ? "M" : "L"}${px[i].toFixed(1)} ${yScale(p.y).toFixed(1)}`).join(" ");
+  const py = points.map((p) => yScale(p.y));
+  const path = points.map((_, i) => `${i === 0 ? "M" : "L"}${px[i].toFixed(1)} ${py[i].toFixed(1)}`).join(" ");
+
+  const valueLabels = labelIndices(px, Math.max(36, widest * 8 + 10), index);
+  const dateLabels = labelIndices(px, MIN_DATE_GAP, index);
 
   const pick = (e: PointerEvent<SVGSVGElement>) => {
     const box = e.currentTarget.getBoundingClientRect();
@@ -63,7 +73,7 @@ export function LineChart({ points, selected, onSelect, label, unit, formatY = (
   const valueText = (p: LinePoint) => `${formatY(p.y)}${unit ? ` ${unit}` : ""}`;
 
   return (
-    <figure className="m-0 flex flex-col gap-2">
+    <figure className="m-0">
       <div
         ref={ref}
         role="slider"
@@ -74,7 +84,7 @@ export function LineChart({ points, selected, onSelect, label, unit, formatY = (
         aria-valuenow={index}
         aria-valuetext={`${current.label}: ${valueText(current)}`}
         onKeyDown={onKeyDown}
-        className="rounded-control focus-visible:outline-2 focus-visible:outline-offset-2"
+        className="focus-visible:outline-offset-2"
       >
         <svg
           width={measured ?? "100%"}
@@ -91,33 +101,33 @@ export function LineChart({ points, selected, onSelect, label, unit, formatY = (
             if (e.buttons === 1) pick(e);
           }}
         >
-          {ticks.map((t) => (
-            <g key={t}>
-              <line x1={left} x2={left + innerWidth} y1={yScale(t)} y2={yScale(t)} className="stroke-line" strokeWidth={1} />
-              <text x={left - 8} y={yScale(t) + 4} textAnchor="end" className="fill-ink-faint text-[12px]">
-                {formatY(t)}
+          <line x1={0} x2={width} y1={baseline} y2={baseline} className="stroke-rule" strokeWidth={1} />
+          {count > 1 ? <path d={path} fill="none" className="stroke-ink" strokeWidth={1.5} /> : null}
+          {points.map((_, i) => (
+            <circle key={i} cx={px[i]} cy={py[i]} r={i === index ? 4 : 2.5} className="fill-ink" />
+          ))}
+          {points.map((_, i) =>
+            i === index ? (
+              <text key={i} x={px[i]} y={py[i] - 12.4} textAnchor="middle" fontSize={18} fontWeight={400} className="fill-ink">
+                {shown[i]}
               </text>
-            </g>
-          ))}
-          <text x={px[0]} y={height - 6} textAnchor={count === 1 ? "middle" : "start"} className="fill-ink-faint text-[12px]">
-            {points[0].label}
-          </text>
-          {count > 1 ? (
-            <text x={px[count - 1]} y={height - 6} textAnchor="end" className="fill-ink-faint text-[12px]">
-              {points[count - 1].label}
-            </text>
-          ) : null}
-          {count > 1 ? <path d={path} fill="none" className="stroke-ember" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" /> : null}
-          {points.map((p, i) => (
-            <circle key={i} cx={px[i]} cy={yScale(p.y)} r={i === index ? 0 : 3} className="fill-ember" />
-          ))}
-          <line x1={px[index]} x2={px[index]} y1={MARGIN.top} y2={height - MARGIN.bottom} className="stroke-ink-faint" strokeWidth={1} strokeDasharray="3 3" />
-          <circle cx={px[index]} cy={yScale(current.y)} r={6} className="fill-ground stroke-ember" strokeWidth={3} />
+            ) : valueLabels.has(i) ? (
+              <text key={i} x={px[i]} y={py[i] - 12} textAnchor="middle" fontSize={15} fontWeight={300} className="fill-ink">
+                {shown[i]}
+              </text>
+            ) : null,
+          )}
+          {points.map((p, i) =>
+            dateLabels.has(i) ? (
+              <text key={i} x={px[i]} y={height - DATE_FROM_BOTTOM} textAnchor="middle" fontSize={13} fontWeight={400} className="fill-ink">
+                {p.label}
+              </text>
+            ) : null,
+          )}
         </svg>
       </div>
-      <figcaption aria-live="polite" className="text-[17px] text-ink">
-        <span className="font-semibold">{valueText(current)}</span>
-        <span className="text-ink-dim">{` on ${current.label}`}</span>
+      <figcaption aria-live="polite" className="sr-only">
+        {`${valueText(current)} on ${current.label}`}
       </figcaption>
       <table className="sr-only">
         <caption>{label}</caption>

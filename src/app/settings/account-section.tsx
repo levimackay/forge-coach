@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Section } from "@/components/coach/section";
 import { useOnline } from "@/components/coach/use-now";
-import { Button, Field, Sheet, useToast } from "@/components/ui";
+import { Button, Field, ListGroup, ListRow, Sheet, useToast } from "@/components/ui";
 import { useAuth } from "@/lib/auth";
 import { deleteAllMyData, syncNow, useSyncStatus } from "@/lib/local";
 import { clearLocalData } from "@/lib/local/data";
@@ -53,40 +53,41 @@ export function AccountSection() {
   };
 
   return (
-    <Section title="Account">
-      <div className="flex flex-col gap-4 rounded-card border border-line bg-surface p-4">
-        <div className="flex flex-col gap-1">
-          <p className="text-[15px] text-ink-dim">Signed in as</p>
-          <p className="break-all text-[17px] text-ink">{user?.email ?? "Unknown"}</p>
-        </div>
-        <Button variant="secondary" loading={signingOut} onClick={() => (unsynced > 0 ? setConfirmSignOut(true) : void doSignOut())}>
-          Sign out
-        </Button>
-      </div>
-
-      <div className="flex flex-col gap-4 rounded-card border border-line bg-surface p-4">
-        <h3 className="title">Delete</h3>
-        <p className="text-[15px] text-ink-dim">
-          Both need a connection, because they remove your data from the server as well as this device. Export first if you want a
-          copy.
-        </p>
-        <Button variant="danger" disabled={!online} onClick={() => setDanger("data")}>
-          Delete all my data
-        </Button>
-        <p className="-mt-2 text-[15px] text-ink-faint">Clears your workouts, program, goals and logs. You keep your account and start setup again.</p>
-        <Button variant="danger" disabled={!online} onClick={() => setDanger("account")}>
-          Delete my account
-        </Button>
-        <p className="-mt-2 text-[15px] text-ink-faint">Removes your data and your sign-in for good.</p>
-        {!online ? <p className="text-[15px] text-ink-dim">You are offline. Connect to delete anything.</p> : null}
-      </div>
+    <Section
+      title="Account"
+      description="Deleting your data or your account needs a connection, because it removes data from the server as well as this device. Export first if you want a copy."
+    >
+      <ListGroup label="Account" className="border-t border-rule">
+        <ListRow label="Email" title={user?.email ?? "Unknown"} />
+        <ListRow
+          title="Sign out"
+          trailing={signingOut ? "Signing out" : undefined}
+          disabled={signingOut}
+          onClick={() => (unsynced > 0 ? setConfirmSignOut(true) : void doSignOut())}
+        />
+        <ListRow
+          title="Delete all my data"
+          subtitle="Clears your workouts, program, goals and logs. You keep your account and start setup again."
+          chevron
+          disabled={!online}
+          onClick={() => setDanger("data")}
+        />
+        <ListRow
+          title="Delete my account"
+          subtitle="Removes your data and your sign-in for good."
+          chevron
+          disabled={!online}
+          onClick={() => setDanger("account")}
+        />
+      </ListGroup>
+      {!online ? <p className="text-why">You are offline. Connect to delete anything.</p> : null}
 
       <Sheet
         open={confirmSignOut}
         onClose={() => setConfirmSignOut(false)}
         title="Sign out with unsynced changes?"
         footer={
-          <div className="flex gap-3">
+          <div className="flex items-stretch">
             <Button variant="secondary" className="flex-1" onClick={() => setConfirmSignOut(false)}>
               Stay signed in
             </Button>
@@ -96,7 +97,7 @@ export function AccountSection() {
           </div>
         }
       >
-        <p className="text-[17px] text-ink-dim">
+        <p>
           {`${unsynced} ${unsynced === 1 ? "change has" : "changes have"} not reached the server. They stay on this device and sync the next time you sign in to this account. If someone signs in to a different account here first, FORGE asks before deleting them.`}
         </p>
       </Sheet>
@@ -151,8 +152,8 @@ function TypedConfirm({
   };
 
   return (
-    <div className="flex flex-col gap-4 pb-2">
-      <p className="text-[17px] text-ink-dim">{description}</p>
+    <div className="flex flex-col gap-4">
+      <p>{description}</p>
       <Field
         label={`Type ${WORD} to confirm`}
         value={typed}
@@ -163,12 +164,12 @@ function TypedConfirm({
         error={error}
         onChange={(e) => setTyped(e.target.value)}
       />
-      <div className="flex gap-3">
-        <Button variant="secondary" className="flex-1" disabled={busy} onClick={onClose}>
-          Cancel
-        </Button>
-        <Button variant="primary" className="flex-1" loading={busy} disabled={typed.trim() !== WORD} onClick={() => void run()}>
+      <div className="flex flex-col">
+        <Button variant="danger" className="bleed" loading={busy} disabled={typed.trim() !== WORD} onClick={() => void run()}>
           {action}
+        </Button>
+        <Button variant="secondary" size="lg" fullWidth disabled={busy} onClick={onClose}>
+          Cancel
         </Button>
       </div>
     </div>

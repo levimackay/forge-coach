@@ -5,15 +5,26 @@ import { useRouter } from "next/navigation";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ListGroup, ListRow } from "@/components/ui/list-row";
+import { named } from "@/components/ui/name";
 import { Segmented } from "@/components/ui/segmented";
 import { Sheet } from "@/components/ui/sheet";
 import { useToast } from "@/components/ui/toast";
+import { ScreenBar } from "@/components/shell/screen-bar";
+import { SyncChip } from "@/components/shell/sync-chip";
 import { useProfile, useSyncStatus } from "@/lib/local";
 import { syncNow } from "@/lib/local/sync";
 import type { Unit } from "@/lib/domain/types";
 import type { SessionPlanItem } from "@/lib/engine";
-import { Notice, ScreenTitle, SectionTitle } from "./bits";
-import { PROGRESS_ACTIONS, countLabel, formatDate, formatDateLong, formatLoad, formatPrescription, formatTime } from "./format";
+import { Figure, Notice } from "./bits";
+import {
+  countLabel,
+  dayDisplayClass,
+  formatDate,
+  formatDateLong,
+  formatNumber,
+  formatPrescription,
+  formatTime,
+} from "./format";
 import { buildPlan, itemNote, resolveEquipment, useTodayData, type TodayData } from "./queries";
 import { startWorkout } from "./session-actions";
 import { ScreenSkeleton } from "./skeletons";
@@ -37,7 +48,7 @@ export function TodayScreen() {
         <EmptyState
           title="Finish setting up"
           action={
-            <ButtonLink href="/onboarding" variant="primary" size="lg">
+            <ButtonLink href="/onboarding" variant="primary" className="bleed">
               Set up FORGE
             </ButtonLink>
           }
@@ -50,7 +61,7 @@ export function TodayScreen() {
       <EmptyState
         title="No active program"
         action={
-          <ButtonLink href="/program" variant="primary" size="lg">
+          <ButtonLink href="/program" variant="primary" className="bleed">
             Build a program
           </ButtonLink>
         }
@@ -106,101 +117,105 @@ function TodayContent({
   const unsynced = sync.pending + sync.failed;
 
   return (
-    <div className="flex flex-col gap-6 pb-4">
-      <ScreenTitle title={ctx.day.name}>
-        <p className="text-[15px]">{now === null ? " " : formatDateLong(new Date(now).toISOString())}</p>
-        <p className="text-[15px]">
+    <div className="flex flex-col pb-[var(--band-height)]">
+      <ScreenBar
+        start={<SyncChip />}
+        end={
+          ctx.equipmentProfiles.length > 1 ? (
+            <Segmented
+              slash
+              label="Training at"
+              className="-mr-2.5"
+              value={equipment?.id ?? ""}
+              onChange={setProfileId}
+              options={ctx.equipmentProfiles.map((e) => ({ value: e.id, label: e.name }))}
+            />
+          ) : undefined
+        }
+      />
+
+      <header>
+        <h1 className={`-ml-[5px] break-words ${dayDisplayClass(ctx.day.name)}`}>{named(ctx.day.name)}</h1>
+        <p className="pt-[22px]">{now === null ? " " : formatDateLong(new Date(now).toISOString())}</p>
+        <p>
           {isNextDay ? "Next in " : "From "}
           {ctx.program.name}
           {lastCompleted
-            ? `. Last workout: ${dayOf(lastCompleted.program_day_id)}, ${formatDate(lastCompleted.started_at)}.`
-            : ". You have not finished a workout yet."}
+            ? `, after ${dayOf(lastCompleted.program_day_id)} on ${formatDate(lastCompleted.started_at)}`
+            : ", nothing finished yet"}
         </p>
-      </ScreenTitle>
+      </header>
 
-      {unsynced === 0 && !sync.online ? (
-        <Notice>You are offline. Everything you log is saved on this device and syncs when you are back online.</Notice>
-      ) : null}
+      <div className="flex flex-col gap-3 pt-3">
+        {unsynced === 0 && !sync.online ? (
+          <Notice>You are offline. Everything you log is saved on this device and syncs when you are back online.</Notice>
+        ) : null}
 
-      {unsynced > 0 ? (
-        <Notice
-          action={
-            <Button variant="ghost" size="sm" className="shrink-0 whitespace-nowrap" loading={sync.syncing} onClick={() => void syncNow()}>
-              {sync.online ? "Sync now" : "Offline"}
-            </Button>
-          }
-        >
-          {sync.failed > 0
-            ? `${countLabel(sync.failed, "change")} could not be saved to your account and stays on this device.`
-            : `${countLabel(sync.pending, "change")} saved on this device, waiting to sync.`}
-        </Notice>
-      ) : null}
+        {unsynced > 0 ? (
+          <Notice
+            action={
+              <Button variant="ghost" size="sm" className="shrink-0 whitespace-nowrap" loading={sync.syncing} onClick={() => void syncNow()}>
+                {sync.online ? "Sync now" : "Offline"}
+              </Button>
+            }
+          >
+            {sync.failed > 0
+              ? `${countLabel(sync.failed, "change")} could not be saved to your account and stays on this device.`
+              : `${countLabel(sync.pending, "change")} saved on this device, waiting to sync.`}
+          </Notice>
+        ) : null}
 
-      {inProgress ? (
-        <section aria-label="Workout in progress" className="flex flex-col gap-3 rounded-card border border-line bg-surface p-4">
-          <div>
-            <h2 className="title">{dayOf(inProgress.program_day_id)} is in progress</h2>
-            <p className="text-[15px] text-ink-dim">
+        {inProgress ? (
+          <section aria-label="Workout in progress">
+            <h2 className="text-name">{dayOf(inProgress.program_day_id)} is in progress</h2>
+            <p>
               Started {formatDate(inProgress.started_at)} at {formatTime(inProgress.started_at)}. Everything you logged is
               saved.
             </p>
-          </div>
-          <ButtonLink href={`/workout?id=${inProgress.id}`} variant="primary" size="lg" fullWidth>
-            Resume workout
-          </ButtonLink>
-        </section>
-      ) : null}
+          </section>
+        ) : null}
 
-      <RecoveryPrompt logged={recoveryToday !== null} sleep={recoveryToday?.sleep_hours ?? null} soreness={recoveryToday?.soreness ?? null} />
+        {swapped > 0 ? (
+          <p>
+            {countLabel(swapped, "exercise")} swapped for similar ones that fit {equipment?.name}.
+          </p>
+        ) : null}
 
-      {ctx.equipmentProfiles.length > 1 ? (
-        <div className="flex flex-col gap-2">
-          <SectionTitle>Training at</SectionTitle>
-          <Segmented
-            label="Training at"
-            value={equipment?.id ?? ""}
-            onChange={setProfileId}
-            options={ctx.equipmentProfiles.map((e) => ({ value: e.id, label: e.name }))}
-          />
-          {swapped > 0 ? (
-            <p className="px-1 text-[15px] text-ink-dim">
-              {countLabel(swapped, "exercise")} swapped for similar ones that fit {equipment?.name}.
-            </p>
-          ) : null}
-        </div>
-      ) : null}
-
-      <div className="flex flex-col gap-2">
-        <SectionTitle>Exercises</SectionTitle>
-        {plan === null ? (
-          <ScreenSkeleton rows={ctx.planned.length || 4} label="Planning your session" />
-        ) : plan.length === 0 ? (
-          <EmptyState
-            title="Nothing planned for this day"
-            action={
-              <ButtonLink href="/program" variant="secondary">
-                Add exercises
-              </ButtonLink>
-            }
-          >
-            This day has no exercises yet. Add some in Program.
-          </EmptyState>
-        ) : (
-          <ListGroup label="Today's exercises">
-            {plan.map((item) => (
-              <PlanRow key={item.planned.id} item={item} unit={ctx.unit} data={data} />
-            ))}
-          </ListGroup>
-        )}
+        <RecoveryPrompt logged={recoveryToday !== null} sleep={recoveryToday?.sleep_hours ?? null} soreness={recoveryToday?.soreness ?? null} />
       </div>
 
-      {!inProgress && plan && plan.length > 0 ? (
-        <Button variant="primary" size="lg" fullWidth loading={starting} onClick={() => void start()}>
+      {plan === null ? (
+        <ScreenSkeleton rows={ctx.planned.length || 4} label="Planning your session" />
+      ) : plan.length === 0 ? (
+        <EmptyState
+          title="Nothing planned for this day"
+          action={
+            <ButtonLink href="/program" variant="secondary">
+              Add exercises
+            </ButtonLink>
+          }
+        >
+          This day has no exercises yet. Add some in Program.
+        </EmptyState>
+      ) : (
+        <ListGroup label="Today's exercises">
+          {plan.map((item) => (
+            <PlanRow key={item.planned.id} item={item} unit={ctx.unit} data={data} />
+          ))}
+        </ListGroup>
+      )}
+
+      {inProgress ? (
+        <ButtonLink href={`/workout?id=${inProgress.id}`} variant="primary" pinned="tabs">
+          Resume workout
+        </ButtonLink>
+      ) : plan && plan.length > 0 ? (
+        <Button variant="primary" pinned="tabs" loading={starting} onClick={() => void start()}>
           Start workout
         </Button>
       ) : null}
 
-      <ListGroup label="More">
+      <ListGroup label="More" className="mt-8">
         {ctx.days.length > 1 ? (
           <ListRow
             title="Train a different day"
@@ -214,11 +229,12 @@ function TodayContent({
       </ListGroup>
 
       <Sheet open={dayOpen} onClose={() => setDayOpen(false)} title="Choose a day">
-        <ListGroup label="Program days">
+        <ListGroup label="Program days" className="border-t border-rule">
           {ctx.days.map((d) => (
             <ListRow
               key={d.id}
-              title={d.name}
+              title={named(d.name)}
+              name
               subtitle={d.id === data.nextDayId ? "Next in your rotation" : undefined}
               trailing={d.id === ctx.day.id ? "Showing" : undefined}
               onClick={() => {
@@ -228,9 +244,7 @@ function TodayContent({
             />
           ))}
         </ListGroup>
-        {pickedDay === null ? null : (
-          <p className="pt-3 text-[15px] text-ink-dim">Training a different day does not change your rotation order.</p>
-        )}
+        {pickedDay === null ? null : <p className="pt-3">Training a different day does not change your rotation order.</p>}
       </Sheet>
     </div>
   );
@@ -243,25 +257,21 @@ function RecoveryPrompt({ logged, sleep, soreness }: { logged: boolean; sleep: n
       soreness !== null ? `soreness ${soreness} of 5` : null,
     ].filter(Boolean);
     return (
-      <div className="flex items-center justify-between gap-3 rounded-card border border-line bg-surface py-1 pl-4 pr-1">
-        <p className="py-2 text-[15px] text-ink-dim">Check-in logged{parts.length ? `: ${parts.join(", ")}` : ""}.</p>
-        <ButtonLink href="/log" variant="ghost" size="sm">
+      <div className="flex min-h-11 items-center justify-between gap-3 border-y border-rule">
+        <p>Check-in{parts.length ? `: ${parts.join(", ")}` : " logged"}</p>
+        <ButtonLink href="/log" variant="ghost" size="sm" className="-mr-2 min-w-11" aria-label="Edit check-in">
           Edit
         </ButtonLink>
       </div>
     );
   }
   return (
-    <section aria-label="Recovery check-in" className="flex flex-col gap-3 rounded-card border border-line bg-surface p-4">
-      <div>
-        <h2 className="text-[17px] font-semibold">How did you recover?</h2>
-        <p className="text-[15px] text-ink-dim">
-          Sleep and soreness take a few taps. Poor recovery makes FORGE hold your weights instead of adding more.
-        </p>
-      </div>
-      <ButtonLink href="/log" variant="secondary" fullWidth>
-        Log a check-in
-      </ButtonLink>
+    <section aria-label="Recovery check-in" className="border-t border-rule pt-3">
+      <h2 className="text-name">How did you recover?</h2>
+      <p className="pb-1 pt-1">
+        Sleep and soreness take a few taps. Poor recovery makes FORGE hold your weights instead of adding more.
+      </p>
+      <ListRow title="Log a check-in" href="/log" />
     </section>
   );
 }
@@ -269,27 +279,24 @@ function RecoveryPrompt({ logged, sleep, soreness }: { logged: boolean; sleep: n
 function PlanRow({ item, unit, data }: { item: SessionPlanItem; unit: Unit; data: TodayData }) {
   const { exercise, prescription, planned } = item;
   const note = itemNote(item, data.ctx.lastDecisions[planned.id]);
-  const load = usesLoad(exercise)
-    ? prescription.load !== null
-      ? formatLoad(prescription.load, unit)
-      : "Pick a weight"
-    : "Bodyweight";
+  const value = usesLoad(exercise) ? (
+    prescription.load !== null ? (
+      <Figure value={formatNumber(prescription.load)} unit={unit} />
+    ) : (
+      "Pick a weight"
+    )
+  ) : (
+    "Bodyweight"
+  );
 
   return (
-    <div className="flex flex-col gap-1 px-4 py-3">
+    <div className="border-b border-rule py-3">
       <div className="flex items-baseline justify-between gap-3">
-        <p className="min-w-0 text-[17px] font-medium">{exercise.name}</p>
-        <p className="shrink-0 text-[17px] text-ink-dim">{load}</p>
+        <h2 className="min-w-0 break-words text-name">{named(exercise.name)}</h2>
+        <p className="shrink-0">{value}</p>
       </div>
-      <p className="text-[15px] text-ink-dim">{formatPrescription(prescription)}</p>
-      {note ? (
-        <p className="flex gap-2 pt-0.5 text-[15px] text-ink">
-          {PROGRESS_ACTIONS.has(note.action) ? (
-            <span aria-hidden="true" className="mt-[7px] h-2 w-2 shrink-0 rounded-full bg-ember" />
-          ) : null}
-          <span>{note.text}</span>
-        </p>
-      ) : null}
+      <p>{formatPrescription(prescription)}</p>
+      {note ? <p className="pt-1 text-why">{note.text}</p> : null}
     </div>
   );
 }

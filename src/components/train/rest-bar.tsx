@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { Button } from "@/components/ui/button";
+import { useEffect, type ReactNode } from "react";
 import { formatClock } from "./format";
 import { useNowSeconds } from "./use-now";
 
@@ -39,35 +38,72 @@ export function saveRest(workoutId: string, rest: RestState | null): void {
 const STALE_AFTER_SECONDS = 600;
 const ADJUST_SECONDS = 15;
 
-export function RestBar({
+/** Never more than the rest that was set: the shared clock can lag the moment the set was saved by up to a second. */
+const secondsLeft = (rest: RestState, now: number): number => Math.min(rest.total, Math.ceil((rest.endsAt - now) / 1000));
+
+/**
+ * The big figure at the top of the workout screen, with two short lines at its right and a 4px bar
+ * under it. While a rest runs the bar is red and empties; otherwise it is a hairline.
+ */
+function ClockFace({
+  figure,
+  unit,
+  lines,
+  fraction,
+  timer,
+}: {
+  figure: ReactNode;
+  unit?: string;
+  lines: [string, string];
+  /** 0 to 1 of the rest still to go. Leave out when no rest is running. */
+  fraction?: number;
+  timer?: boolean;
+}) {
+  return (
+    <>
+      <div className="px-safe">
+        <div
+          role={timer ? "timer" : undefined}
+          aria-label={timer ? "Rest timer" : undefined}
+          className="flex h-[100px] items-end justify-between gap-4"
+        >
+          <p className="-ml-[5px] flex items-baseline text-fig-112 leading-[90px]">
+            {figure}
+            {unit ? <span className="ml-1 text-body tracking-normal">{unit}</span> : null}
+          </p>
+          <p className="pb-3 text-right text-word">
+            {lines[0]}
+            <br />
+            {lines[1]}
+          </p>
+        </div>
+      </div>
+      <div className="relative h-1" aria-hidden="true">
+        {fraction === undefined ? (
+          <div className="absolute inset-x-0 bottom-0 h-px bg-rule" />
+        ) : (
+          <div className="h-full bg-red transition-[width] duration-1000 ease-linear" style={{ width: `${fraction * 100}%` }} />
+        )}
+      </div>
+    </>
+  );
+}
+
+/** The workout clock while a rest runs: time left, and which set is next. */
+export function RestClock({
   rest,
   onChange,
+  next,
 }: {
   rest: RestState;
   onChange: (next: RestState | null) => void;
+  /** "Set 2 next", or empty when there is nothing next. */
+  next: string;
 }) {
   const now = useNowSeconds();
-  const ref = useRef<HTMLDivElement>(null);
-  // Never more than the rest that was set: the shared clock can lag the moment the set was saved by up to a second.
-  const remaining = now === null ? null : Math.min(rest.total, Math.ceil((rest.endsAt - now) / 1000));
+  const remaining = now === null ? null : secondsLeft(rest, now);
   const over = remaining !== null && remaining <= 0;
   const stale = remaining !== null && remaining < -STALE_AFTER_SECONDS;
-  const visible = remaining !== null && !stale;
-
-  // Publishes the bar's height so the sticky "Log set" button can sit just above it.
-  useEffect(() => {
-    const el = ref.current;
-    if (!visible || !el) return;
-    const root = document.documentElement.style;
-    const publish = () => root.setProperty("--rest-bar-height", `${el.offsetHeight}px`);
-    publish();
-    const observer = new ResizeObserver(publish);
-    observer.observe(el);
-    return () => {
-      observer.disconnect();
-      root.removeProperty("--rest-bar-height");
-    };
-  }, [visible]);
 
   useEffect(() => {
     if (stale) onChange(null);
@@ -77,36 +113,40 @@ export function RestBar({
     if (over) navigator.vibrate?.(200);
   }, [over]);
 
-  if (remaining === null || stale) return null;
+  const figure = remaining === null ? " " : over ? "Go" : formatClock(remaining);
+  const fraction = remaining === null ? 0 : Math.min(1, Math.max(0, remaining / Math.max(rest.total, 1)));
+  return <ClockFace timer figure={figure} lines={[over ? "Rest over" : "Rest", next]} fraction={fraction} />;
+}
 
-  const shift = (seconds: number) => onChange({ ...rest, endsAt: rest.endsAt + seconds * 1000, total: Math.max(rest.total + seconds, 1) });
-  const fraction = Math.min(1, Math.max(0, remaining / Math.max(rest.total, 1)));
+/** The workout clock with no rest running: how long the session has gone, and how many sets are in. */
+export function SessionClock({ minutes, sets }: { minutes: number | null; sets: string }) {
+  const hours = minutes !== null && minutes >= 60;
+  const figure =
+    minutes === null ? " " : hours ? `${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, "0")}` : String(minutes);
+  return <ClockFace figure={figure} unit={minutes === null ? undefined : hours ? "h" : "min"} lines={["Elapsed", sets]} />;
+}
+
+/** Take 15 seconds off, add 15, or end the rest. A full-bleed strip of three cells. */
+export function RestControls({ rest, onChange }: { rest: RestState; onChange: (next: RestState | null) => void }) {
+  const now = useNowSeconds();
+  const remaining = now === null ? null : secondsLeft(rest, now);
+  if (remaining === null || remaining < -STALE_AFTER_SECONDS) return null;
+
+  const shift = (seconds: number) =>
+    onChange({ ...rest, endsAt: rest.endsAt + seconds * 1000, total: Math.max(rest.total + seconds, 1) });
+  const cell = "flex h-full items-center justify-center text-control active:bg-ink active:text-ground";
 
   return (
-    <div
-      ref={ref}
-      role="timer"
-      aria-label="Rest timer"
-      className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface pb-safe"
-    >
-      <div className="h-1 bg-raised">
-        <div className="h-full bg-ember transition-[width] duration-1000 ease-linear" style={{ width: `${fraction * 100}%` }} />
-      </div>
-      <div className="mx-auto flex max-w-2xl items-center gap-2 px-4 py-2">
-        <div className="min-w-0 flex-1">
-          <p className="text-[13px] text-ink-dim">{over ? "Rest is over" : "Rest"}</p>
-          <p className="text-[28px] font-semibold leading-none">{over ? "Go" : formatClock(remaining)}</p>
-        </div>
-        <Button variant="secondary" size="sm" aria-label={`Take ${ADJUST_SECONDS} seconds off the rest`} onClick={() => shift(-ADJUST_SECONDS)}>
-          -{ADJUST_SECONDS}s
-        </Button>
-        <Button variant="secondary" size="sm" aria-label={`Add ${ADJUST_SECONDS} seconds to the rest`} onClick={() => shift(ADJUST_SECONDS)}>
-          +{ADJUST_SECONDS}s
-        </Button>
-        <Button variant="ghost" size="sm" onClick={() => onChange(null)}>
-          {over ? "Dismiss" : "Skip"}
-        </Button>
-      </div>
+    <div role="group" aria-label="Rest timer controls" className="bleed grid h-14 grid-cols-3 border-y border-rule">
+      <button type="button" className={cell} aria-label={`Take ${ADJUST_SECONDS} seconds off the rest`} onClick={() => shift(-ADJUST_SECONDS)}>
+        −{ADJUST_SECONDS}s
+      </button>
+      <button type="button" className={`${cell} border-l border-rule`} aria-label={`Add ${ADJUST_SECONDS} seconds to the rest`} onClick={() => shift(ADJUST_SECONDS)}>
+        +{ADJUST_SECONDS}s
+      </button>
+      <button type="button" className={`${cell} border-l border-rule`} onClick={() => onChange(null)}>
+        {remaining <= 0 ? "Dismiss" : "Skip"}
+      </button>
     </div>
   );
 }

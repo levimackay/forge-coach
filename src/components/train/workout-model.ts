@@ -1,5 +1,5 @@
 import type { Exercise, PrescriptionSnapshot, Unit, WorkoutSet } from "@/lib/domain/types";
-import { formatLoad } from "./format";
+import { formatLoad, formatNumber } from "./format";
 
 export const DEFAULT_REST_SECONDS = 90;
 export const WARMUP_REST_SECONDS = 60;
@@ -135,7 +135,7 @@ export function draftToRow(args: {
   };
 }
 
-/** "12 reps at 50 lb, 2 RIR" */
+/** "12 reps at 50 lb, 2 RIR". Read aloud, so it spells everything out. */
 export function describeSet(set: Pick<WorkoutSet, "reps" | "load" | "rir">, unit: Unit): string {
   const parts = [`${set.reps} ${set.reps === 1 ? "rep" : "reps"}`];
   if (set.load !== null) parts[0] += ` at ${formatLoad(set.load, unit)}`;
@@ -143,15 +143,31 @@ export function describeSet(set: Pick<WorkoutSet, "reps" | "load" | "rir">, unit
   return parts.join(", ");
 }
 
-/** "12, 11, 10 reps at 50 lb" or, with changing weights, "12 at 50 lb, 10 at 55 lb". */
+const repsOf = (reps: number): string => `${reps} ${reps === 1 ? "rep" : "reps"}`;
+
+/** "160 lb × 6 at 2 RIR", or "12 reps at 2 RIR" when there is no weight. The on-screen form of a logged set. */
+export function setLine(set: Pick<WorkoutSet, "reps" | "load" | "rir">, unit: Unit): string {
+  const lift = set.load !== null ? `${formatLoad(set.load, unit)} × ${set.reps}` : repsOf(set.reps);
+  return set.rir !== null ? `${lift} at ${set.rir} RIR` : lift;
+}
+
+/** "160 lb × 6, 6, 6" for a shared weight, "160 lb × 6, 165 lb × 5" for changing ones, "12, 11 reps" with no weight. */
 export function lastSessionLine(sets: Pick<WorkoutSet, "reps" | "load">[], unit: Unit): string {
   if (sets.length === 0) return "";
   const loads = new Set(sets.map((s) => s.load));
   if (loads.size === 1) {
     const load = sets[0].load;
-    return `${sets.map((s) => s.reps).join(", ")} reps${load !== null ? ` at ${formatLoad(load, unit)}` : ""}`;
+    const reps = sets.map((s) => s.reps).join(", ");
+    return load !== null ? `${formatLoad(load, unit)} × ${reps}` : `${reps} reps`;
   }
-  return sets.map((s) => (s.load !== null ? `${s.reps} at ${formatLoad(s.load, unit)}` : `${s.reps}`)).join(", ");
+  return sets.map((s) => (s.load !== null ? `${formatLoad(s.load, unit)} × ${s.reps}` : `${s.reps}`)).join(", ");
+}
+
+/** What the Log set band shows on its right: "160 × 6, 2 RIR". No unit, because the weight row beside it has one. */
+export function draftSummary(draft: SetDraft, exercise: LoadKind): string {
+  const reps = draft.reps ?? 0;
+  const lift = usesLoad(exercise) && draft.load !== null ? `${formatNumber(draft.load)} × ${reps}` : repsOf(reps);
+  return !draft.warmup && draft.rir !== null ? `${lift}, ${draft.rir} RIR` : lift;
 }
 
 export function restSecondsFor(planned: { rest_seconds: number | null }, warmup: boolean): number {

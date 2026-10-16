@@ -7,8 +7,11 @@ import { Field } from "@/components/ui/field";
 import { ListGroup, ListRow } from "@/components/ui/list-row";
 import { NumberStepper } from "@/components/ui/number-stepper";
 import { Segmented } from "@/components/ui/segmented";
+import { named } from "@/components/ui/name";
 import { Sheet } from "@/components/ui/sheet";
 import { useToast } from "@/components/ui/toast";
+import { ScreenBar } from "@/components/shell/screen-bar";
+import { SyncChip } from "@/components/shell/sync-chip";
 import {
   useActiveProgram,
   useEquipmentProfiles,
@@ -22,8 +25,8 @@ import { syncNow } from "@/lib/local/sync";
 import type { EquipmentProfile, Exercise, PlannedExercise, Unit } from "@/lib/domain/types";
 import { isUsable, loadIncrement, type EquipmentLike } from "@/lib/engine";
 import type { PplVariant } from "@/lib/templates/ppl";
-import { Chip, Notice, ScreenTitle, SectionTitle } from "./bits";
-import { EQUIPMENT_NAME, MUSCLES, MUSCLE_LABEL, countLabel, formatLoad, formatPrescription } from "./format";
+import { Chip, Figure, Notice, ScreenTitle, SectionTitle, SheetBand } from "./bits";
+import { EQUIPMENT_NAME, MUSCLES, MUSCLE_LABEL, countLabel, formatNumber, formatPrescription } from "./format";
 import {
   MAX_REPS,
   MAX_REST_SECONDS,
@@ -92,7 +95,7 @@ function NoProgram({ library, equipment }: { library: Exercise[]; equipment: Equ
       <EmptyState
         title="No program yet"
         action={
-          <ButtonLink href="/onboarding" variant="primary" size="lg">
+          <ButtonLink href="/onboarding" variant="primary" className="bleed">
             Set up FORGE
           </ButtonLink>
         }
@@ -113,8 +116,11 @@ function NoProgram({ library, equipment }: { library: Exercise[]; equipment: Equ
   };
 
   return (
-    <div className="flex flex-col gap-6 pb-4">
-      <ScreenTitle title="Program">You do not have an active program. Build one from your equipment.</ScreenTitle>
+    <div className="flex flex-col gap-6 pb-[var(--band-height)]">
+      <div>
+        <ScreenBar start={<SyncChip />} />
+        <ScreenTitle title="Program">You do not have an active program. Build one from your equipment.</ScreenTitle>
+      </div>
       {library.length === 0 ? (
         <Notice
           action={
@@ -128,6 +134,7 @@ function NoProgram({ library, equipment }: { library: Exercise[]; equipment: Equ
       ) : null}
       <Segmented
         label="Training days per week"
+        className="-ml-2.5"
         value={variant}
         onChange={setVariant}
         options={[
@@ -136,17 +143,18 @@ function NoProgram({ library, equipment }: { library: Exercise[]; equipment: Equ
         ]}
       />
       {equipment.length > 1 ? (
-        <div className="flex flex-col gap-2">
+        <div>
           <SectionTitle>Build it for</SectionTitle>
           <Segmented
             label="Build it for"
+            className="-ml-2.5"
             value={profile.id}
             onChange={setProfileId}
             options={equipment.map((e) => ({ value: e.id, label: e.name }))}
           />
         </div>
       ) : null}
-      <Button variant="primary" size="lg" fullWidth loading={busy} disabled={library.length === 0} onClick={() => void create()}>
+      <Button variant="primary" pinned="tabs" loading={busy} disabled={library.length === 0} onClick={() => void create()}>
         Create program
       </Button>
     </div>
@@ -192,15 +200,16 @@ function ProgramView({
   };
 
   return (
-    <div className="flex flex-col gap-5 pb-4">
+    <div className="pb-4">
+      <ScreenBar start={<SyncChip />} />
       <ScreenTitle title="Program">
-        <p className="text-[17px]">
+        <p>
           {program.name}, {program.days_per_week} days a week
         </p>
-        {program.notes ? <p className="pt-1 text-[15px]">{program.notes}</p> : null}
+        {program.notes ? <p className="pt-1">{program.notes}</p> : null}
       </ScreenTitle>
 
-      <div role="group" aria-label="Program days" className="flex flex-wrap gap-2">
+      <div role="group" aria-label="Program days" className="-mx-2.5 flex flex-wrap pb-2">
         {days.map((d) => (
           <Chip key={d.id} selected={d.id === day.id} onClick={() => onPickDay(d.id)}>
             {d.name}
@@ -208,25 +217,27 @@ function ProgramView({
         ))}
       </div>
 
-      <section aria-label={day.name} className="flex flex-col gap-2">
-        <SectionTitle>
-          {day.name}, {countLabel(items.length, "exercise")}
-          {dayEquipment ? `, ${dayEquipment.name}` : ""}
+      <section aria-label={day.name}>
+        <SectionTitle aside={`${countLabel(items.length, "exercise")}${dayEquipment ? `, ${dayEquipment.name}` : ""}`}>
+          {day.name}
         </SectionTitle>
         {items.length === 0 ? (
-          <p className="rounded-card border border-line bg-surface p-4 text-[17px] text-ink-dim">
-            No exercises on this day. Add one below.
-          </p>
+          <p className="border-y border-rule py-3">No exercises on this day. Add one below.</p>
         ) : (
-          <ListGroup label={`${day.name} exercises`}>
+          <ListGroup label={`${day.name} exercises`} className="border-t border-rule">
             {items.map((p) => {
               const ex = libraryById.get(p.exercise_id);
               return (
                 <ListRow
                   key={p.id}
-                  title={ex?.name ?? "Exercise"}
+                  title={named(ex?.name ?? "Exercise")}
+                  name
                   subtitle={formatPrescription(p)}
-                  trailing={ex && usesLoad(ex) ? (p.load !== null ? formatLoad(p.load, unit) : "No weight") : undefined}
+                  trailing={
+                    ex && usesLoad(ex) ? (
+                      p.load !== null ? <Figure size={24} value={formatNumber(p.load)} unit={unit} /> : "No weight"
+                    ) : undefined
+                  }
                   onClick={() => setEditingId(p.id)}
                   chevron
                 />
@@ -234,12 +245,14 @@ function ProgramView({
             })}
           </ListGroup>
         )}
-        <Button variant="secondary" fullWidth onClick={() => setAdding(true)}>
-          Add an exercise
-        </Button>
+        <div className="pt-2">
+          <Button variant="secondary" fullWidth onClick={() => setAdding(true)}>
+            Add an exercise
+          </Button>
+        </div>
       </section>
 
-      <p className="px-1 text-[15px] text-ink-dim">
+      <p className="pt-6">
         Changes save as you make them. After each workout FORGE still adjusts weights and reps from what you lifted.
       </p>
 
@@ -356,7 +369,7 @@ function EditForm({
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="grid grid-cols-1 gap-5">
+      <div>
         <NumberStepper
           label="Sets"
           value={edit.sets}
@@ -381,11 +394,11 @@ function EditForm({
           onChange={(rep_max) => setEdit({ ...edit, ...clampReps({ rep_max }, edit) })}
         />
         <NumberStepper
-          label="Reps in reserve (RIR)"
+          label="RIR"
           value={edit.target_rir}
           min={0}
           max={MAX_RIR}
-          hint="How many reps to leave in the tank on each set."
+          hint="Reps in reserve: how many reps to leave in the tank on each set."
           onChange={(target_rir) => setEdit({ ...edit, target_rir })}
         />
         {usesLoad(exercise) ? (
@@ -400,63 +413,51 @@ function EditForm({
           />
         ) : null}
         <NumberStepper
-          label="Rest between sets"
+          label="Rest"
           unit="s"
           value={edit.rest_seconds}
           step={15}
           min={0}
           max={MAX_REST_SECONDS}
+          hint="Rest between sets."
           onChange={(rest_seconds) => setEdit({ ...edit, rest_seconds })}
         />
+        <div className="border-t border-rule" />
       </div>
 
-      <div className="flex flex-col gap-3">
-        <SectionTitle>
-          Position {index + 1} of {order.length}
-        </SectionTitle>
-        <div className="flex gap-3">
-          <Button
-            variant="secondary"
-            className="flex-1"
+      <div>
+        <SectionTitle>{`Position ${index + 1} of ${order.length}`}</SectionTitle>
+        <div className="grid h-14 grid-cols-2 border-y border-rule">
+          <button
+            type="button"
+            className="flex items-center justify-center underline decoration-1 underline-offset-4 active:bg-ink active:text-ground disabled:text-grey disabled:no-underline disabled:active:bg-transparent"
             disabled={busy || index <= 0}
             onClick={() => void run(() => movePlannedExercise(order, planned.id, -1), "The exercise was not moved.", false)}
           >
             Move up
-          </Button>
-          <Button
-            variant="secondary"
-            className="flex-1"
+          </button>
+          <button
+            type="button"
+            className="flex items-center justify-center border-l border-rule underline decoration-1 underline-offset-4 active:bg-ink active:text-ground disabled:text-grey disabled:no-underline disabled:active:bg-transparent"
             disabled={busy || index === -1 || index >= order.length - 1}
             onClick={() => void run(() => movePlannedExercise(order, planned.id, 1), "The exercise was not moved.", false)}
           >
             Move down
-          </Button>
+          </button>
         </div>
-        <Button variant="secondary" fullWidth disabled={busy} onClick={() => setSwapping(true)}>
-          Swap exercise
-        </Button>
-        <Button variant="danger" fullWidth disabled={busy} onClick={() => void remove()}>
-          Remove from this day
-        </Button>
+        <ListRow title="Swap exercise" onClick={() => setSwapping(true)} disabled={busy} chevron />
+        <ListRow title="Remove from this day" onClick={() => void remove()} disabled={busy} />
       </div>
 
-      {/* Last in the form and pinned to the bottom of the sheet while the fields scroll. */}
-      <div className="sticky bottom-0 -mx-5 -mb-4 flex flex-col gap-2 border-t border-line bg-surface px-5 pb-4 pt-3">
-        {error ? (
-          <p role="alert" className="text-[15px] text-danger">
-            {error}
-          </p>
-        ) : null}
+      <SheetBand error={error}>
         <Button
           variant="primary"
-          size="lg"
-          fullWidth
           loading={busy}
           onClick={() => void run(() => savePlannedEdit(planned, edit), "The changes were not saved. Try again.")}
         >
           Save changes
         </Button>
-      </div>
+      </SheetBand>
 
       <ExercisePickerSheet
         open={swapping}
@@ -534,7 +535,7 @@ function PickerBody({
 
   return (
     <div className="flex flex-col gap-4 pb-2">
-      {note ? <p className="text-[15px] text-ink-dim">{note}</p> : null}
+      {note ? <p>{note}</p> : null}
       <Field
         label="Search exercises"
         type="search"
@@ -544,27 +545,28 @@ function PickerBody({
         onChange={(e) => setQuery(e.target.value)}
       />
       {equipment ? (
-        <div>
+        <div className="-mx-2.5">
           <Chip selected={everything} onClick={() => setEverything(!everything)}>
             Include exercises that need other equipment
           </Chip>
         </div>
       ) : null}
       {groups.length === 0 ? (
-        <p className="text-[17px] text-ink-dim">
+        <p>
           {everything || !equipment
             ? "No exercises match that search."
             : `No exercises match that search with the equipment at ${equipment.name}.`}
         </p>
       ) : (
         groups.map(({ muscle, exercises }) => (
-          <div key={muscle} className="flex flex-col gap-2">
-            <h3 className="px-1 text-[15px] font-semibold text-ink-dim">{MUSCLE_LABEL[muscle]}</h3>
-            <ListGroup label={MUSCLE_LABEL[muscle]}>
+          <div key={muscle}>
+            <h3 className="pb-2 pt-2 text-name">{named(MUSCLE_LABEL[muscle])}</h3>
+            <ListGroup label={MUSCLE_LABEL[muscle]} className="border-t border-rule">
               {exercises.map((e) => (
                 <ListRow
                   key={e.id}
-                  title={e.name}
+                  title={named(e.name)}
+                  name
                   subtitle={
                     e.equipment.filter((c) => c !== "bodyweight").map((c) => EQUIPMENT_NAME[c]).join(", ") || "Bodyweight"
                   }

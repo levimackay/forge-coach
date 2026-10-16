@@ -6,6 +6,7 @@ import {
   canLog,
   currentExerciseId,
   describeSet,
+  draftSummary,
   draftToRow,
   firstOpenIndex,
   groupByPlanned,
@@ -15,6 +16,7 @@ import {
   nextSetIndex,
   restSecondsFor,
   sessionTotals,
+  setLine,
   usesLoad,
   workSetsOf,
 } from "./workout-model";
@@ -194,11 +196,27 @@ describe("text helpers", () => {
     expect(describeSet({ reps: 1, load: null, rir: null }, "lb")).toBe("1 rep");
   });
 
+  it("shows a logged set with a multiplication sign, and drops what is missing", () => {
+    expect(setLine({ reps: 6, load: 160, rir: 2 }, "lb")).toBe("160 lb × 6 at 2 RIR");
+    expect(setLine({ reps: 8, load: 62.5, rir: null }, "kg")).toBe("62.5 kg × 8");
+    expect(setLine({ reps: 12, load: null, rir: 2 }, "lb")).toBe("12 reps at 2 RIR");
+    expect(setLine({ reps: 1, load: null, rir: null }, "lb")).toBe("1 rep");
+  });
+
   it("summarises last time with a shared or changing weight", () => {
-    expect(lastSessionLine([{ reps: 12, load: 50 }, { reps: 11, load: 50 }, { reps: 10, load: 50 }], "lb")).toBe("12, 11, 10 reps at 50 lb");
-    expect(lastSessionLine([{ reps: 12, load: 50 }, { reps: 10, load: 55 }], "lb")).toBe("12 at 50 lb, 10 at 55 lb");
+    expect(lastSessionLine([{ reps: 6, load: 160 }, { reps: 6, load: 160 }, { reps: 6, load: 160 }], "lb")).toBe("160 lb × 6, 6, 6");
+    expect(lastSessionLine([{ reps: 12, load: 50 }, { reps: 10, load: 55 }], "lb")).toBe("50 lb × 12, 55 lb × 10");
     expect(lastSessionLine([{ reps: 8, load: null }, { reps: 7, load: null }], "kg")).toBe("8, 7 reps");
     expect(lastSessionLine([], "lb")).toBe("");
+  });
+
+  it("writes the Log set band's value from the draft", () => {
+    const draft = { reps: 6, load: 160, rir: 2, warmup: false, pain: false, note: "" };
+    expect(draftSummary(draft, exercise())).toBe("160 × 6, 2 RIR");
+    expect(draftSummary({ ...draft, rir: null }, exercise())).toBe("160 × 6");
+    expect(draftSummary({ ...draft, warmup: true }, exercise())).toBe("160 × 6");
+    expect(draftSummary({ ...draft, load: null }, exercise({ load_type: "bodyweight" }))).toBe("6 reps, 2 RIR");
+    expect(draftSummary({ ...draft, reps: 1, load: null }, exercise({ load_type: "bodyweight" }))).toBe("1 rep, 2 RIR");
   });
 
   it("measures minutes", () => {

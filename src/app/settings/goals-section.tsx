@@ -6,10 +6,10 @@ import type { Goal } from "@/lib/domain/types";
 import { sentence } from "@/components/coach/format";
 import { NativeSelect } from "@/components/coach/native-select";
 import { Section } from "@/components/coach/section";
-import { WrapList } from "@/components/coach/wrap-row";
-import { Button, EmptyState, Field, Sheet, Skeleton, useToast } from "@/components/ui";
+import { Button, EmptyState, Field, IconPlus, ListGroup, ListRow, Sheet, Skeleton, useToast } from "@/components/ui";
 import { putRow, softDelete, useLive } from "@/lib/local";
 import { getDb } from "@/lib/local/db";
+import { CheckField } from "./check-field";
 import { GOAL_KINDS, blankGoal, draftFromGoal, goalSubtitle, parseGoal, type GoalDraft } from "./goal-form";
 
 export function GoalsSection() {
@@ -21,19 +21,14 @@ export function GoalsSection() {
 
   return (
     <Section title="Goals" description="Reports and Claude read these, so say what you are actually after.">
-      {goals === undefined ? (
-        <Skeleton className="h-24 w-full" />
-      ) : goals.length === 0 ? (
+      {goals === undefined ? <Skeleton rows={2} /> : null}
+      {goals?.length === 0 ? (
         <EmptyState title="No goals yet">Add one, such as “Bigger back by spring”, so advice has something to aim at.</EmptyState>
-      ) : (
-        <WrapList
-          label="Goals"
-          rows={goals.map((g) => ({ key: g.id, title: g.description, subtitle: goalSubtitle(g), onClick: () => setEditing(g) }))}
-        />
-      )}
-      <Button variant="secondary" disabled={goals === undefined} onClick={() => setEditing("new")}>
-        Add goal
-      </Button>
+      ) : null}
+      <ListGroup label="Goals" className="border-t border-rule">
+        {goals?.map((g) => <ListRow key={g.id} title={g.description} subtitle={goalSubtitle(g)} chevron onClick={() => setEditing(g)} />)}
+        <ListRow title="Add goal" trailing={<IconPlus size={20} />} disabled={goals === undefined} onClick={() => setEditing("new")} />
+      </ListGroup>
 
       <Sheet open={editing !== null} onClose={() => setEditing(null)} title={editing === "new" ? "New goal" : "Edit goal"}>
         {editing !== null ? <GoalForm existing={editing === "new" ? null : editing} onDone={() => setEditing(null)} /> : null}
@@ -83,7 +78,7 @@ function GoalForm({ existing, onDone }: { existing: Goal | null; onDone: () => v
   };
 
   return (
-    <form onSubmit={save} className="flex flex-col gap-5 pb-2" noValidate>
+    <form onSubmit={save} className="flex flex-col gap-5" noValidate>
       <NativeSelect label="Kind of goal" value={draft.kind} onChange={(v) => set("kind", v as GoalDraft["kind"])} options={GOAL_KINDS} />
       <Field
         label="Goal"
@@ -95,9 +90,9 @@ function GoalForm({ existing, onDone }: { existing: Goal | null; onDone: () => v
         onChange={(e) => set("description", e.target.value)}
       />
 
-      <fieldset className="flex flex-col gap-2">
-        <legend className="mb-1 text-[15px] font-medium text-ink-dim">Muscles to focus on (optional)</legend>
-        <div className="flex flex-wrap gap-2">
+      <fieldset className="flex flex-col">
+        <legend className="mb-1">Muscles to focus on (optional)</legend>
+        <div className="-ml-2.5 flex flex-wrap">
           {MUSCLES.map((m) => {
             const on = draft.focusMuscles.includes(m);
             return (
@@ -106,9 +101,7 @@ function GoalForm({ existing, onDone }: { existing: Goal | null; onDone: () => v
                 type="button"
                 aria-pressed={on}
                 onClick={() => set("focusMuscles", on ? draft.focusMuscles.filter((x) => x !== m) : [...draft.focusMuscles, m])}
-                className={`min-h-11 rounded-full border px-4 text-[15px] font-medium ${
-                  on ? "border-ink bg-raised text-ink" : "border-line text-ink-dim active:bg-raised"
-                }`}
+                className={`inline-flex min-h-11 items-center px-2.5 ${on ? "underline decoration-2 underline-offset-[7px]" : "text-grey"}`}
               >
                 {sentence(m)}
               </button>
@@ -119,16 +112,15 @@ function GoalForm({ existing, onDone }: { existing: Goal | null; onDone: () => v
 
       <Field label="Target date (optional)" type="date" value={draft.targetDate} error={errors.targetDate} onChange={(e) => set("targetDate", e.target.value)} />
 
-      <label className="flex min-h-11 items-center gap-3 text-[17px]">
-        <input type="checkbox" checked={draft.active} onChange={(e) => set("active", e.target.checked)} className="h-6 w-6 shrink-0 accent-ember" />
+      <CheckField checked={draft.active} onChange={(on) => set("active", on)}>
         Still working on this
-      </label>
+      </CheckField>
 
-      <Button type="submit" variant="primary" size="lg" loading={busy}>
+      <Button type="submit" variant="primary" className="bleed" loading={busy}>
         Save
       </Button>
       {existing ? (
-        <Button variant="danger" disabled={busy} onClick={() => void remove()}>
+        <Button variant="secondary" disabled={busy} onClick={() => void remove()}>
           Delete goal
         </Button>
       ) : null}

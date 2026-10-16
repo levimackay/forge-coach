@@ -4,9 +4,12 @@ import { useState } from "react";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ListGroup, ListRow } from "@/components/ui/list-row";
+import { named } from "@/components/ui/name";
+import { ScreenBar } from "@/components/shell/screen-bar";
+import { SyncChip } from "@/components/shell/sync-chip";
 import { sessionMinutes } from "@/lib/analytics";
-import { ScreenTitle, SectionTitle } from "./bits";
-import { countLabel, formatDate, formatDuration, formatMonth } from "./format";
+import { Figure, ScreenTitle } from "./bits";
+import { countLabel, formatDuration, formatMonth, formatMonthDay, formatWeekday } from "./format";
 import { useHistory, type HistoryRow } from "./queries";
 import { ScreenSkeleton } from "./skeletons";
 
@@ -21,11 +24,12 @@ export function HistoryScreen() {
   if (history.total === 0) {
     return (
       <>
+        <ScreenBar start={<SyncChip />} />
         <ScreenTitle title="History" />
         <EmptyState
           title="No finished workouts yet"
           action={
-            <ButtonLink href="/today" variant="primary" size="lg">
+            <ButtonLink href="/today" variant="primary" className="bleed">
               Go to Today
             </ButtonLink>
           }
@@ -46,20 +50,23 @@ export function HistoryScreen() {
   }
 
   return (
-    <div className="flex flex-col gap-5 pb-4">
+    <div className="pb-4">
+      <ScreenBar start={<SyncChip />} />
       <ScreenTitle title="History">{countLabel(history.total, "finished workout")}</ScreenTitle>
       {months.map((month) => (
-        <section key={month.label} className="flex flex-col gap-1">
-          <SectionTitle>{month.label}</SectionTitle>
-          <ListGroup label={month.label}>
+        <section key={month.label}>
+          <h2 className="pb-2 pt-6 text-head">{month.label}</h2>
+          <ListGroup label={month.label} className="border-t border-rule">
             {month.rows.map(({ workout, dayName, workSets }) => {
               const minutes = sessionMinutes(workout);
               return (
                 <ListRow
                   key={workout.id}
-                  title={dayName ?? "Workout"}
-                  subtitle={`${formatDate(workout.started_at)}${minutes !== null ? `, ${formatDuration(minutes)}` : ""}`}
-                  trailing={countLabel(workSets, "set")}
+                  label={formatMonthDay(workout.started_at)}
+                  title={named(dayName ?? "Workout")}
+                  name
+                  subtitle={`${formatWeekday(workout.started_at)}${minutes !== null ? `, ${formatDuration(minutes)}` : ""}`}
+                  trailing={<Figure size={24} value={String(workSets)} unit={workSets === 1 ? "set" : "sets"} />}
                   href={`/history/session?id=${workout.id}`}
                 />
               );
@@ -68,9 +75,11 @@ export function HistoryScreen() {
         </section>
       ))}
       {history.total > history.rows.length ? (
-        <Button variant="secondary" fullWidth onClick={() => setLimit(limit + PAGE)}>
-          Show older workouts
-        </Button>
+        <div className="pt-4">
+          <Button variant="secondary" fullWidth onClick={() => setLimit(limit + PAGE)}>
+            Show older workouts
+          </Button>
+        </div>
       ) : null}
     </div>
   );

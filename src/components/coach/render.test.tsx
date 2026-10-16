@@ -75,6 +75,14 @@ describe("ProposalCard", () => {
     expect(out).not.toContain('disabled=""');
   });
 
+  it("names the proposal with a period, approves with an ink band and rejects with plain text", () => {
+    const out = card();
+    expect(out).toContain("Add a set of lateral raises.");
+    expect(out).toMatch(/<button[^>]*class="[^"]*bg-ink[^"]*"[^>]*><span>Approve<\/span>/);
+    expect(out).toMatch(/<button[^>]*class="[^"]*underline[^"]*"[^>]*>Reject<\/button>/);
+    expect(out).not.toMatch(/rounded|shadow|bg-red/);
+  });
+
   it("labels a proposal the user made as coming from them", () => {
     expect(card({ proposal: proposal({ source: "user", client_id: null }) })).toContain("From You, ");
   });
@@ -112,6 +120,13 @@ describe("DiffView", () => {
     expect(out).not.toContain(String.fromCharCode(0x2014));
   });
 
+  it("names each change with a period and keeps rows as label and value pairs", () => {
+    const out = html(<DiffView blocks={blocks} label="Changes" />);
+    expect(out).toContain("Lateral raise.");
+    expect(out).toContain("<dt>Sets</dt>");
+    expect(out).not.toMatch(/rounded|bg-raised|border-line/);
+  });
+
   it("shows only the new value when there is nothing to compare with", () => {
     const out = html(<DiffView blocks={[{ ...blocks[0], rows: [{ label: "Sets", before: null, after: "4" }] }]} label="x" />);
     expect(out).not.toContain("changes to");
@@ -140,6 +155,11 @@ describe("HistoryList", () => {
     expect(out).toContain("Undone 3 days ago");
     expect(out).toContain("Your note: Not now");
     expect(out.match(/Undo this change/g)).toHaveLength(1);
+  });
+
+  it("offers undo as a hairline row, not a band", () => {
+    const applied = proposal({ status: "applied", applied_at: NOW, inverse_changes: [] });
+    expect(list([applied])).toMatch(/<button[^>]*border-b border-rule[^>]*>[\s\S]*Undo this change/);
   });
 
   it("does not offer undo without a stored inverse, and explains offline", () => {

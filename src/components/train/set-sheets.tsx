@@ -8,14 +8,18 @@ import { NumberStepper } from "@/components/ui/number-stepper";
 import { Sheet } from "@/components/ui/sheet";
 import type { Exercise, Unit, WorkoutSet } from "@/lib/domain/types";
 import { isUsable, loadIncrement, type EquipmentLike } from "@/lib/engine";
-import { Chip } from "./bits";
+import { named } from "@/components/ui/name";
+import { Chip, SheetBand } from "./bits";
 import type { SetEdit } from "./session-actions";
 import { loadLabel, usesLoad } from "./workout-model";
 
 export const MAX_REPS_INPUT = 300;
 export const MAX_LOAD_INPUT = 2000;
 
-/** Weight, reps and RIR steppers that every set form shares. */
+/**
+ * Weight, reps and RIR as rows of one table, closed by a hairline. `large` is the live logger:
+ * a taller weight row and no explanation under RIR.
+ */
 export function SetFields({
   draft,
   exercise,
@@ -23,6 +27,7 @@ export function SetFields({
   step,
   onChange,
   large = false,
+  closed = true,
 }: {
   draft: SetEdit;
   exercise: Exercise;
@@ -30,9 +35,11 @@ export function SetFields({
   step: number;
   onChange: (next: SetEdit) => void;
   large?: boolean;
+  /** Draws the hairline under the last row. Leave it off when the next element draws its own top rule. */
+  closed?: boolean;
 }) {
   return (
-    <div className="flex flex-col gap-4">
+    <div>
       {usesLoad(exercise) ? (
         <NumberStepper
           label={loadLabel(exercise)}
@@ -57,23 +64,24 @@ export function SetFields({
         value={draft.reps}
         min={1}
         max={MAX_REPS_INPUT}
-        large={large}
         onChange={(reps) => onChange({ ...draft, reps })}
       />
       {draft.warmup ? null : draft.rir === null ? (
-        <p className="text-[15px] text-ink-dim">
-          RIR is not recorded for this set. Without it FORGE waits one extra session before adding weight.
-        </p>
+        <div className="grid grid-cols-[var(--label-col)_minmax(0,1fr)] gap-x-2 border-t border-rule py-4">
+          <span>RIR</span>
+          <p>RIR is not recorded for this set. Without it FORGE waits one extra session before adding weight.</p>
+        </div>
       ) : (
         <NumberStepper
-          label="Reps in reserve (RIR)"
+          label="RIR"
           value={draft.rir}
           min={0}
           max={10}
-          hint="Reps you could still have done."
+          hint={large ? undefined : "Reps in reserve: the reps you could still have done."}
           onChange={(rir) => onChange({ ...draft, rir })}
         />
       )}
+      {closed ? <div className="border-t border-rule" /> : null}
     </div>
   );
 }
@@ -89,23 +97,24 @@ export function SetFlags({
   onChange: (next: SetEdit) => void;
 }) {
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex flex-wrap gap-2">
-        <Chip selected={draft.warmup} onClick={() => onChange({ ...draft, warmup: !draft.warmup })}>
-          Warmup
-        </Chip>
-        <Chip tone="danger" selected={draft.pain} onClick={() => onChange({ ...draft, pain: !draft.pain })}>
-          Pain
-        </Chip>
-        {draft.warmup ? null : (
-          <Chip selected={draft.rir === null} onClick={() => onChange({ ...draft, rir: draft.rir === null ? defaultRir : null })}>
-            No RIR
+    <div>
+      <div className="grid grid-cols-[var(--label-col)_minmax(0,1fr)] min-h-14 items-center border-b border-rule">
+        <span>This set</span>
+        <div role="group" aria-label="This set" className="-ml-2.5 flex flex-wrap">
+          <Chip selected={draft.warmup} onClick={() => onChange({ ...draft, warmup: !draft.warmup })}>
+            Warmup
           </Chip>
-        )}
+          <Chip selected={draft.pain} onClick={() => onChange({ ...draft, pain: !draft.pain })}>
+            Pain
+          </Chip>
+          {draft.warmup ? null : (
+            <Chip selected={draft.rir === null} onClick={() => onChange({ ...draft, rir: draft.rir === null ? defaultRir : null })}>
+              No RIR
+            </Chip>
+          )}
+        </div>
       </div>
-      {draft.pain ? (
-        <p className="text-[15px] text-ink-dim">This exercise will stay at its current weight next time.</p>
-      ) : null}
+      {draft.pain ? <p className="pt-3">This exercise will stay at its current weight next time.</p> : null}
     </div>
   );
 }
@@ -190,7 +199,7 @@ function EditForm({
 
   return (
     <div className="flex flex-col gap-5">
-      <p className="text-[17px] text-ink-dim">{exercise.name}</p>
+      <p className="text-name">{named(exercise.name)}</p>
       <SetFields draft={draft} exercise={exercise} unit={unit} step={step} onChange={setDraft} />
       <SetFlags draft={draft} defaultRir={2} onChange={setDraft} />
       <Field
@@ -202,7 +211,7 @@ function EditForm({
         onChange={(e) => setDraft({ ...draft, note: e.target.value })}
       />
       <Button
-        variant="danger"
+        variant="secondary"
         fullWidth
         disabled={busy === "save"}
         loading={busy === "delete"}
@@ -210,24 +219,16 @@ function EditForm({
       >
         Delete set
       </Button>
-      {/* Last in the form and pinned to the bottom of the sheet while the fields scroll. */}
-      <div className="sticky bottom-0 -mx-5 -mb-4 flex flex-col gap-2 border-t border-line bg-surface px-5 pb-4 pt-3">
-        {error ? (
-          <p role="alert" className="text-[15px] text-danger">
-            {error}
-          </p>
-        ) : null}
+      <SheetBand error={error}>
         <Button
           variant="primary"
-          size="lg"
-          fullWidth
           disabled={!valid || busy === "delete"}
           loading={busy === "save"}
           onClick={() => void run("save", () => onSave(set, draft))}
         >
           Save changes
         </Button>
-      </div>
+      </SheetBand>
     </div>
   );
 }
@@ -288,29 +289,27 @@ export function SwapSheet({
   return (
     <Sheet open={current !== null} onClose={onClose} title="Swap exercise">
       <div className="flex flex-col gap-4 pb-2">
-        <p className="text-[15px] text-ink-dim">
+        <p>
           Instead of {current?.name}
           {equipmentName ? `, showing what fits ${equipmentName}` : ""}. Sets you already logged stay as they are.
         </p>
-        {empty ? (
-          <p className="text-[17px]">Nothing else in the library fits this movement and your equipment.</p>
-        ) : null}
+        {empty ? <p>Nothing else in the library fits this movement and your equipment.</p> : null}
         {options.ladder.length > 0 ? (
-          <div className="flex flex-col gap-2">
-            <h3 className="px-1 text-[15px] font-semibold text-ink-dim">Same progression</h3>
-            <ListGroup label="Variations on the same progression">
+          <div>
+            <h3 className="pt-2 text-name">{named("Same progression")}</h3>
+            <ListGroup label="Variations on the same progression" className="border-t border-rule mt-2">
               {options.ladder.map(({ exercise, hint }) => (
-                <ListRow key={exercise.id} title={exercise.name} trailing={hint} onClick={() => onPick(exercise)} />
+                <ListRow key={exercise.id} title={named(exercise.name)} name trailing={hint} onClick={() => onPick(exercise)} />
               ))}
             </ListGroup>
           </div>
         ) : null}
         {options.others.length > 0 ? (
-          <div className="flex flex-col gap-2">
-            <h3 className="px-1 text-[15px] font-semibold text-ink-dim">Other options</h3>
-            <ListGroup label="Other exercises for the same movement">
+          <div>
+            <h3 className="pt-2 text-name">{named("Other options")}</h3>
+            <ListGroup label="Other exercises for the same movement" className="border-t border-rule mt-2">
               {options.others.map(({ exercise }) => (
-                <ListRow key={exercise.id} title={exercise.name} onClick={() => onPick(exercise)} />
+                <ListRow key={exercise.id} title={named(exercise.name)} name onClick={() => onPick(exercise)} />
               ))}
             </ListGroup>
           </div>

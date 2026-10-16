@@ -6,7 +6,7 @@ import { ACTION_LABEL, dateText } from "@/components/coach/format";
 import type { DiffContext } from "@/components/coach/diff";
 import { DiffRows } from "@/components/coach/diff-view";
 import { Section } from "@/components/coach/section";
-import { Button, Skeleton } from "@/components/ui";
+import { Button, Skeleton, named } from "@/components/ui";
 import { useExerciseLibrary, useProgressionDecisions } from "@/lib/local";
 import { decisionChangeRows } from "./derive";
 import type { Athlete } from "./use-progress-data";
@@ -36,10 +36,10 @@ export function DecisionsSection({ athlete }: { athlete: Athlete }) {
   );
 
   let body;
-  if (!digest || !ctx) body = <Skeleton className="h-40 w-full" />;
+  if (!digest || !ctx) body = <Skeleton rows={3} />;
   else if (digest.items.length === 0) {
     body = (
-      <p className="rounded-card border border-line bg-surface p-4 text-[17px] text-ink-dim">
+      <p>
         No decisions yet. After you finish a workout, FORGE checks every exercise you did and records what it will ask of you
         next time, with the reason.
       </p>
@@ -47,20 +47,20 @@ export function DecisionsSection({ athlete }: { athlete: Athlete }) {
   } else {
     const items = all ? digest.items : digest.items.slice(0, FIRST_PAGE);
     body = (
-      <div className="flex flex-col gap-3">
-        <ul className="overflow-hidden rounded-card border border-line bg-surface">
+      <>
+        <ul className="border-b border-rule">
           {items.map((item, i) => {
             const rows = decisionChangeRows(item, ctx);
             return (
-              <li key={`${item.decided_at}-${item.exercise_id}-${i}`} className="flex flex-col gap-1 border-b border-line px-4 py-3 last:border-b-0">
+              <li key={`${item.decided_at}-${item.exercise_id}-${i}`} className="flex flex-col gap-1 border-t border-rule py-3">
                 <div className="flex items-baseline justify-between gap-3">
-                  <span className="min-w-0 truncate text-[17px] font-medium text-ink">{item.exercise}</span>
-                  <span className="shrink-0 text-[15px] text-ink-faint">{dateText(item.decided_at, athlete.nowIso, athlete.timeZone)}</span>
+                  <h3 className="min-w-0 break-words text-name">{named(item.exercise)}</h3>
+                  <span className="shrink-0 text-small">{dateText(item.decided_at, athlete.nowIso, athlete.timeZone)}</span>
                 </div>
-                <p className="text-[15px] font-medium text-ink-dim">{ACTION_LABEL[item.action]}</p>
-                <p className="text-[15px] text-ink">{item.reason}</p>
+                <p>{ACTION_LABEL[item.action]}</p>
+                <p className="text-why">{item.reason}</p>
                 {rows.length > 0 ? (
-                  <div className="mt-1 border-t border-line pt-2">
+                  <div className="mt-1">
                     <DiffRows rows={rows} />
                   </div>
                 ) : null}
@@ -69,11 +69,11 @@ export function DecisionsSection({ athlete }: { athlete: Athlete }) {
           })}
         </ul>
         {!all && digest.items.length > FIRST_PAGE ? (
-          <Button variant="secondary" onClick={() => setAll(true)}>
+          <Button variant="secondary" className="-ml-4 self-start" onClick={() => setAll(true)}>
             {`Show ${digest.items.length - FIRST_PAGE} more`}
           </Button>
         ) : null}
-      </div>
+      </>
     );
   }
 

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { CoachProposal, ProposalStatus } from "@/lib/domain/types";
-import { Button, IconChevronRight, Sheet } from "@/components/ui";
+import { Button, IconChevronRight, ListRow, Sheet, named } from "@/components/ui";
 import { describeChanges, type DiffContext, type DiffMode } from "./diff";
 import { DiffView } from "./diff-view";
 import { timeAgo } from "./format";
@@ -45,32 +45,42 @@ export function HistoryList({ proposals, ctx, online, nowIso, undoing, onUndo }:
 
   return (
     <>
-      <ul className="overflow-hidden rounded-card border border-line bg-surface">
+      <ul className="border-b border-rule">
         {proposals.map((p) => (
-          <li key={p.id} className="border-b border-line last:border-b-0">
+          <li key={p.id} className="border-t border-rule">
             <details className="group">
-              <summary className="flex min-h-14 cursor-pointer list-none items-center gap-3 px-4 py-3 active:bg-raised [&::-webkit-details-marker]:hidden">
+              <summary className="flex min-h-14 cursor-pointer list-none items-center gap-3 py-3 active:underline [&::-webkit-details-marker]:hidden">
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[17px] text-ink">{p.title}</span>
-                  <span className="block text-[15px] text-ink-dim">{`${STATUS_LABEL[p.status]} ${timeAgo(happenedAt(p), nowIso)}, from ${sourceLabel(p.source)}`}</span>
+                  <span className="block break-words">{p.title}</span>
+                  <span className="block text-small">{`${STATUS_LABEL[p.status]} ${timeAgo(happenedAt(p), nowIso)}, from ${sourceLabel(p.source)}`}</span>
                 </span>
-                <IconChevronRight size={20} className="shrink-0 text-ink-faint transition-transform group-open:rotate-90" />
+                <IconChevronRight size={20} className="shrink-0 transition-transform group-open:rotate-90" />
               </summary>
-              <div className="flex flex-col gap-4 px-4 pb-4">
-                <p className="whitespace-pre-wrap text-[15px] text-ink">{p.rationale}</p>
-                <DiffView
-                  blocks={describeChanges(p.changes, ctx, MODE[p.status], p.inverse_changes)}
-                  label={p.status === "applied" ? `Changes made by ${p.title}` : `Changes proposed in ${p.title}`}
-                />
-                {p.decision_note ? <p className="text-[15px] text-ink-dim">{`Your note: ${p.decision_note}`}</p> : null}
-                {p.status === "applied" && p.inverse_changes ? (
-                  <div className="flex flex-col gap-2">
-                    <Button variant="secondary" disabled={!online || undoing !== null} loading={undoing === p.id} onClick={() => setConfirming(p)}>
-                      Undo this change
-                    </Button>
-                    {!online ? <p className="text-[15px] text-ink-dim">You are offline. Undoing changes your program on the server, so it needs a connection.</p> : null}
-                  </div>
+              <div className="flex flex-col gap-4 pb-4">
+                <p className="whitespace-pre-wrap text-why">{p.rationale}</p>
+                <div>
+                  <DiffView
+                    blocks={describeChanges(p.changes, ctx, MODE[p.status], p.inverse_changes)}
+                    label={p.status === "applied" ? `Changes made by ${p.title}` : `Changes proposed in ${p.title}`}
+                  />
+                  {p.status === "applied" && p.inverse_changes ? (
+                    <ul>
+                      <li>
+                        <ListRow
+                          title="Undo this change"
+                          trailing={undoing === p.id ? "Undoing" : undefined}
+                          chevron
+                          disabled={!online || undoing !== null}
+                          onClick={() => setConfirming(p)}
+                        />
+                      </li>
+                    </ul>
+                  ) : null}
+                </div>
+                {p.status === "applied" && p.inverse_changes && !online ? (
+                  <p className="text-why">You are offline. Undoing changes your program on the server, so it needs a connection.</p>
                 ) : null}
+                {p.decision_note ? <p className="text-small">{`Your note: ${p.decision_note}`}</p> : null}
               </div>
             </details>
           </li>
@@ -82,7 +92,7 @@ export function HistoryList({ proposals, ctx, online, nowIso, undoing, onUndo }:
         onClose={() => setConfirming(null)}
         title="Undo this change?"
         footer={
-          <div className="flex gap-3">
+          <div className="flex items-stretch">
             <Button variant="secondary" className="flex-1" onClick={() => setConfirming(null)}>
               Keep it
             </Button>
@@ -99,9 +109,9 @@ export function HistoryList({ proposals, ctx, online, nowIso, undoing, onUndo }:
           </div>
         }
       >
-        <div className="flex flex-col gap-3 text-[17px] text-ink-dim">
-          <p className="font-medium text-ink">{confirming?.title}</p>
-          <p>
+        <div className="flex flex-col gap-3">
+          <p className="text-name">{confirming ? named(confirming.title) : null}</p>
+          <p className="text-why">
             The exercises it touched go back to the values they had before, even if your training moved them since. Your logged
             workouts are not affected.
           </p>

@@ -119,8 +119,9 @@ export function metricUnit(metric: Metric, unit: Unit): string {
   return metric === "reps" ? "reps" : unit;
 }
 
+/** Whole numbers for an estimate or a large total, one decimal for loads that move in half steps. */
 export function metricDigits(metric: Metric): number {
-  return metric === "volume" ? 0 : 1;
+  return metric === "volume" || metric === "e1rm" ? 0 : 1;
 }
 
 /** Points for the line chart. Sessions with no value for the metric are left out. */
@@ -139,16 +140,37 @@ export function seriesToLine(series: readonly SeriesPoint[], metric: Metric): { 
 export function bestSetText(point: SeriesPoint, loadType: Exercise["load_type"], unit: Unit): string {
   const { reps, load } = point.best_set;
   const hasLoad = load !== null && load > 0;
-  if (loadType === "external") return hasLoad ? `${num(load as number)} ${unit} x ${reps}` : `${reps} reps`;
-  if (loadType === "bodyweight") return hasLoad ? `+${num(load as number)} ${unit} x ${reps}` : `${reps} reps`;
+  if (loadType === "external") return hasLoad ? `${num(load as number)} ${unit} × ${reps}` : `${reps} reps`;
+  if (loadType === "bodyweight") return hasLoad ? `+${num(load as number)} ${unit} × ${reps}` : `${reps} reps`;
   return hasLoad ? `${reps} reps with ${num(load as number)} ${unit} assistance` : `${reps} reps`;
 }
 
-export function sessionFacts(point: SeriesPoint, loadType: Exercise["load_type"], unit: Unit): string[] {
-  const facts = [`Best set: ${bestSetText(point, loadType, unit)}`];
-  facts.push(`${point.work_sets} work ${point.work_sets === 1 ? "set" : "sets"}, ${point.total_reps} reps in total`);
-  if (point.avg_rir !== null) facts.push(`Average ${num(point.avg_rir)} reps in reserve`);
-  if (point.pain) facts.push("Pain was flagged in this session");
+/**
+ * Splits a best set such as "160 lb × 6" into runs that are set as figures (the numbers and the sign)
+ * and runs that are set as plain words (the unit).
+ */
+export function figureGroups(text: string): { figure: boolean; text: string }[] {
+  const groups: { figure: boolean; text: string }[] = [];
+  for (const token of text.split(" ")) {
+    const figure = /[\d×]/.test(token);
+    const last = groups[groups.length - 1];
+    if (last && last.figure === figure) last.text += ` ${token}`;
+    else groups.push({ figure, text: token });
+  }
+  return groups;
+}
+
+export interface SessionFact {
+  label: string;
+  value: string;
+}
+
+/** The rows under the chart for the selected session. The first is always the best set. */
+export function sessionFacts(point: SeriesPoint, loadType: Exercise["load_type"], unit: Unit): SessionFact[] {
+  const facts: SessionFact[] = [{ label: "Best set", value: bestSetText(point, loadType, unit) }];
+  facts.push({ label: "Work sets", value: `${point.work_sets} ${point.work_sets === 1 ? "set" : "sets"}, ${point.total_reps} reps in total` });
+  if (point.avg_rir !== null) facts.push({ label: "Reps in reserve", value: `${num(point.avg_rir)} on average` });
+  if (point.pain) facts.push({ label: "Pain", value: "Flagged in this session" });
   return facts;
 }
 
@@ -162,6 +184,29 @@ export function trendSummary(points: readonly LinePoint[], unit: string, digits 
   const sessions = `${points.length} sessions`;
   if (delta === 0) return `No change since ${first.label} (${sessions})`;
   return `${delta > 0 ? "Up" : "Down"} ${amount} since ${first.label} (${sessions})`;
+}
+
+/** "+6", "−2.5" or "0": a change with its sign, using a real minus sign. */
+export function signedFigure(delta: number, digits = 1): string {
+  const value = Number(delta.toFixed(digits));
+  const size = Math.abs(value).toLocaleString("en-US", { maximumFractionDigits: digits });
+  return value > 0 ? `+${size}` : value < 0 ? `−${size}` : size;
+}
+
+export interface TrendFigure {
+  /** The change since the first point, signed: "+6". */
+  value: string;
+  unit: string;
+  /** Label of the first point, such as "Sep 11". */
+  since: string;
+  sessions: number;
+}
+
+/** The trend as the parts Progress sets in type; null for fewer than two points. */
+export function trendFigure(points: readonly LinePoint[], unit: string, digits = 1): TrendFigure | null {
+  if (points.length < 2) return null;
+  const delta = points[points.length - 1].y - points[0].y;
+  return { value: signedFigure(delta, digits), unit, since: points[0].label, sessions: points.length };
 }
 
 export interface VolumeRows {
